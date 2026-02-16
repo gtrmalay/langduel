@@ -14,4 +14,7 @@ type Client struct {
 
 	// Нужен для регистрации, удаления клиента и рассылки сообщений.
 	hub  *Hub
+
+	userID string
+	roomID string
 }

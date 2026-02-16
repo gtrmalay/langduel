@@ -1,17 +1,18 @@
-package main
+package storage
 
 import (
-	"fmt"
-	"log"
-	"net/http"
+	"context"
+	"errors"
 )
 
-func main() {
+var ErrNotImplemented = errors.New("storage not implemented")
 
-	http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("pong"))
-	})
+// DB is a placeholder for a future PostgreSQL connection.
+// It allows the rest of the app to compile without wiring DB yet.
+type DB struct{}
 
-	fmt.Println("Server running on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+func Open(ctx context.Context, dsn string) (*DB, error) {
+	_ = ctx
+	_ = dsn
+	return nil, ErrNotImplemented
 }

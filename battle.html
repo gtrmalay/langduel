@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LangDuel Demo</title>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --panel: #111827;
+        --card: #1f2937;
+        --text: #e5e7eb;
+        --muted: #9ca3af;
+        --accent: #22c55e;
+        --danger: #ef4444;
+        --warn: #f59e0b;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Trebuchet MS", Arial, sans-serif;
+        background:
+          radial-gradient(900px 600px at 15% 15%, #1e293b, transparent),
+          radial-gradient(900px 600px at 85% 20%, #1f2937, transparent),
+          linear-gradient(180deg, #0b1220, #0f172a 60%);
+        color: var(--text);
+      }
+      .wrap {
+        max-width: 980px;
+        margin: 32px auto;
+        padding: 0 20px 40px;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+      }
+      .title {
+        font-size: 28px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+      }
+      .status {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .panel {
+        background: var(--panel);
+        border-radius: 14px;
+        padding: 16px;
+        margin-top: 16px;
+        border: 1px solid #1f2937;
+        box-shadow: 0 10px 24px rgba(0,0,0,0.25);
+      }
+      .panel h3 {
+        margin: 0 0 10px 0;
+        font-size: 14px;
+        color: var(--muted);
+        font-weight: normal;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      .controls {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .controls.one { grid-template-columns: 1fr; }
+      .controls.three { grid-template-columns: 1fr 1fr 1fr; }
+      .controls.four { grid-template-columns: 1fr 1fr 1fr 1fr; }
+      input, button, select {
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid #1f2937;
+        background: #0b1220;
+        color: var(--text);
+      }
+      button {
+        cursor: pointer;
+        background: linear-gradient(180deg, #1f2937, #111827);
+        border-color: #1f2937;
+        transition: transform 0.08s ease, background 0.2s ease;
+      }
+      button:hover {
+        background: #2b3647;
+      }
+      button:active {
+        transform: translateY(1px);
+      }
+      .small {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+      .link {
+        margin-top: 6px;
+        word-break: break-all;
+        color: var(--muted);
+      }
+      .link span { color: var(--text); }
+      .hidden { display: none; }
+
+      .arena {
+        display: grid;
+        grid-template-columns: 1fr 120px 1fr;
+        gap: 16px;
+        align-items: center;
+        margin-top: 12px;
+      }
+      .card {
+        background: var(--card);
+        border-radius: 14px;
+        padding: 18px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        position: relative;
+        overflow: hidden;
+      }
+      .card::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border: 1px solid rgba(255,255,255,0.04);
+        pointer-events: none;
+      }
+      .player-name {
+        font-size: 18px;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      .hp {
+        height: 14px;
+        border-radius: 10px;
+        background: #0b1220;
+        overflow: hidden;
+        border: 1px solid #0b1220;
+      }
+      .hp > span {
+        display: block;
+        height: 100%;
+        width: 100%;
+        background: linear-gradient(90deg, var(--accent), #16a34a);
+        transition: width 0.3s ease;
+      }
+      .hp.low > span {
+        background: linear-gradient(90deg, var(--danger), #dc2626);
+      }
+      .hp-label {
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .vs {
+        text-align: center;
+        font-size: 22px;
+        color: var(--warn);
+        background: #0b1220;
+        border: 1px solid #1f2937;
+        padding: 10px 0;
+        border-radius: 999px;
+        box-shadow: inset 0 0 12px rgba(245,158,11,0.2);
+      }
+      .prompt {
+        margin-top: 20px;
+        background: var(--panel);
+        border-radius: 14px;
+        padding: 16px;
+        text-align: center;
+        font-size: 22px;
+        letter-spacing: 0.5px;
+      }
+      .timer {
+        margin-top: 8px;
+        text-align: center;
+        font-size: 14px;
+        color: var(--warn);
+      }
+      .sub {
+        margin-top: 8px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .hit {
+        animation: hitFlash 0.35s ease;
+      }
+      @keyframes hitFlash {
+        0% { box-shadow: 0 0 0 rgba(239,68,68,0); }
+        50% { box-shadow: 0 0 18px rgba(239,68,68,0.9); }
+        100% { box-shadow: 0 0 0 rgba(239,68,68,0); }
+      }
+      .badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        letter-spacing: 0.6px;
+        background: #0b1220;
+        border: 1px solid #1f2937;
+        color: var(--muted);
+      }
+      @media (max-width: 720px) {
+        .arena { grid-template-columns: 1fr; }
+        .vs { display: none; }
+        .controls { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <div>
+          <div class="title">LangDuel Demo</div>
+          <div class="badge">DUEL MODE</div>
+        </div>
+        <div class="status" id="status">Disconnected</div>
+      </header>
+
+      <!-- Step 1: Create / Join -->
+      <div class="panel" id="screenStart">
+        <h3>Start</h3>
+        <div class="controls three">
+          <input id="wsUrl" value="ws://localhost:8080/ws" />
+          <button id="btnCreate">Create Duel</button>
+          <button id="btnJoin">Join Duel</button>
+        </div>
+        <div class="small">Create generates a room link. Join opens by link or room id.</div>
+      </div>
+
+      <!-- Step 2: Create -->
+      <div class="panel hidden" id="screenCreate">
+        <h3>Create Duel</h3>
+        <div class="controls three">
+          <input id="createUser" placeholder="Nickname (Guest)" value="Guest1" />
+          <select id="createLang">
+            <option value="en" selected>English</option>
+          </select>
+          <select id="createTopic">
+            <option value="default" selected>Default pack</option>
+            <option value="animals">Animals</option>
+            <option value="travel">Travel</option>
+            <option value="food">Food</option>
+          </select>
+        </div>
+        <div class="controls three">
+          <input id="createRoom" placeholder="room_id" />
+          <button id="btnGenRoom">Generate Room</button>
+          <button id="btnCreateConnect">Create & Connect</button>
+        </div>
+        <div class="link">Room link: <span id="createLink">-</span></div>
+        <div class="small">Guest entry: just type a nickname.</div>
+      </div>
+
+      <!-- Step 3: Join -->
+      <div class="panel hidden" id="screenJoin">
+        <h3>Join Duel</h3>
+        <div class="controls three">
+          <input id="joinUser" placeholder="Nickname (Guest)" value="Guest2" />
+          <input id="joinRoom" placeholder="room_id" />
+          <button id="btnJoinConnect">Join & Connect</button>
+        </div>
+        <div class="small">Guest entry: just type a nickname.</div>
+      </div>
+
+      <!-- Step 4: Lobby -->
+      <div class="panel hidden" id="screenLobby">
+        <h3>Lobby</h3>
+        <div class="small" id="lobbyText">Waiting for opponent...</div>
+        <div class="link">Room link: <span id="lobbyLink">-</span></div>
+      </div>
+
+      <!-- Step 5: Battle -->
+      <div class="hidden" id="screenBattle">
+        <div class="arena">
+          <div class="card">
+            <div class="player-name" id="p1">Player A</div>
+            <div class="hp" id="hp1"><span></span></div>
+            <div class="hp-label" id="hp1Label">HP: 100</div>
+          </div>
+          <div class="vs">VS</div>
+          <div class="card">
+            <div class="player-name" id="p2">Player B</div>
+            <div class="hp" id="hp2"><span></span></div>
+            <div class="hp-label" id="hp2Label">HP: 100</div>
+          </div>
+        </div>
+
+        <div class="prompt" id="prompt">Waiting for round...</div>
+        <div class="timer" id="timer">-</div>
+        <div class="sub" id="roundInfo">-</div>
+
+        <div class="panel">
+          <h3>Answer</h3>
+          <div class="controls two">
+          <input id="answer" placeholder="answer" autocomplete="off" />
+            <button id="sendBtn" disabled>Send Answer</button>
+          </div>
+          <div class="small">Speed is counted from last round_start.</div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let ws = null;
+      let roundStartAt = null;
+      let countdownTimer = null;
+      const roundDurationMs = 10000;
+
+      const statusEl = document.getElementById("status");
+      const promptEl = document.getElementById("prompt");
+      const timerEl = document.getElementById("timer");
+      const roundInfoEl = document.getElementById("roundInfo");
+      const sendBtn = document.getElementById("sendBtn");
+      const answerEl = document.getElementById("answer");
+
+      const p1El = document.getElementById("p1");
+      const p2El = document.getElementById("p2");
+      const hp1El = document.querySelector("#hp1 span");
+      const hp2El = document.querySelector("#hp2 span");
+      const hp1Wrap = document.getElementById("hp1");
+      const hp2Wrap = document.getElementById("hp2");
+      const hp1Label = document.getElementById("hp1Label");
+      const hp2Label = document.getElementById("hp2Label");
+      const p1Card = document.querySelector(".arena .card:nth-child(1)");
+      const p2Card = document.querySelector(".arena .card:nth-child(3)");
+
+      const screenStart = document.getElementById("screenStart");
+      const screenCreate = document.getElementById("screenCreate");
+      const screenJoin = document.getElementById("screenJoin");
+      const screenLobby = document.getElementById("screenLobby");
+      const screenBattle = document.getElementById("screenBattle");
+      const lobbyText = document.getElementById("lobbyText");
+      const lobbyLink = document.getElementById("lobbyLink");
+
+      const wsUrlEl = document.getElementById("wsUrl");
+      const btnCreate = document.getElementById("btnCreate");
+      const btnJoin = document.getElementById("btnJoin");
+
+      const createUser = document.getElementById("createUser");
+      const createLang = document.getElementById("createLang");
+      const createTopic = document.getElementById("createTopic");
+      const createRoom = document.getElementById("createRoom");
+      const btnGenRoom = document.getElementById("btnGenRoom");
+      const btnCreateConnect = document.getElementById("btnCreateConnect");
+      const createLink = document.getElementById("createLink");
+
+      const joinUser = document.getElementById("joinUser");
+      const joinRoom = document.getElementById("joinRoom");
+      const btnJoinConnect = document.getElementById("btnJoinConnect");
+
+      let currentRoom = "";
+      let currentUser = "";
+      let currentLang = "en";
+      let currentTopic = "default";
+      let currentPlayers = ["Player A", "Player B"];
+
+      function showScreen(screen) {
+        const all = [screenStart, screenCreate, screenJoin, screenLobby, screenBattle];
+        all.forEach(s => s.classList.add("hidden"));
+        screen.classList.remove("hidden");
+      }
+
+      function setHP(el, wrap, label, hp) {
+        const clamped = Math.max(0, Math.min(100, hp));
+        el.style.width = clamped + "%";
+        label.textContent = "HP: " + clamped;
+        wrap.classList.toggle("low", clamped <= 30);
+      }
+
+      function ensurePlayers(players) {
+        if (!players || players.length === 0) return;
+        currentPlayers = [players[0] || "Player A", players[1] || "Player B"];
+        p1El.textContent = currentPlayers[0];
+        p2El.textContent = currentPlayers[1];
+      }
+
+      function applyHP(hpMap) {
+        if (!hpMap) return;
+        const ids = Object.keys(hpMap);
+        if (ids.length > 0) {
+          const id1 = currentPlayers[0] || ids[0];
+          p1El.textContent = id1;
+          setHP(hp1El, hp1Wrap, hp1Label, hpMap[id1] ?? hpMap[ids[0]]);
+        }
+        if (ids.length > 1) {
+          const id2 = currentPlayers[1] || ids[1];
+          p2El.textContent = id2;
+          setHP(hp2El, hp2Wrap, hp2Label, hpMap[id2] ?? hpMap[ids[1]]);
+        }
+      }
+
+      function startCountdown() {
+        stopCountdown();
+        const start = Date.now();
+        countdownTimer = setInterval(() => {
+          const left = Math.max(0, roundDurationMs - (Date.now() - start));
+          timerEl.textContent = "Time left: " + Math.ceil(left / 1000) + "s";
+          if (left <= 0) stopCountdown();
+        }, 200);
+      }
+
+      function stopCountdown() {
+        if (countdownTimer) {
+          clearInterval(countdownTimer);
+          countdownTimer = null;
+        }
+        timerEl.textContent = "-";
+      }
+
+      function hitEffect(defenderID) {
+        const target = defenderID === currentPlayers[0] ? p1Card : p2Card;
+        target.classList.add("hit");
+        setTimeout(() => target.classList.remove("hit"), 350);
+      }
+
+      function showRoundInfo(data) {
+        const round = data.round || 0;
+        roundInfoEl.textContent = "Round: " + round;
+      }
+
+      function buildRoomLink(roomId) {
+        const url = new URL(window.location.href);
+        url.searchParams.set("room", roomId);
+        return url.toString();
+      }
+
+      function setRoomLink(el, roomId) {
+        el.textContent = roomId ? buildRoomLink(roomId) : "-";
+      }
+
+      function connectAndJoin() {
+        ws = new WebSocket(wsUrlEl.value);
+        ws.onopen = () => {
+          statusEl.textContent = "Connected";
+          sendBtn.disabled = false;
+          const msg = {
+            type: "join",
+            room_id: currentRoom,
+            user_id: currentUser,
+            lang: currentLang,
+            topic: currentTopic,
+          };
+          ws.send(JSON.stringify(msg));
+          showScreen(screenLobby);
+          lobbyText.textContent = "Waiting for opponent...";
+          setRoomLink(lobbyLink, currentRoom);
+        };
+        ws.onclose = () => {
+          statusEl.textContent = "Disconnected";
+          sendBtn.disabled = true;
+          stopCountdown();
+          showScreen(screenStart);
+        };
+        ws.onmessage = (ev) => {
+          try {
+            const data = JSON.parse(ev.data);
+            if (data.type === "room_state") {
+              ensurePlayers(data.players);
+              applyHP(data.hp);
+              if (data.prompt) promptEl.textContent = data.prompt;
+              showRoundInfo(data);
+            }
+            if (data.type === "player_joined") {
+              ensurePlayers(data.players);
+              applyHP(data.hp);
+              lobbyText.textContent = "Opponent joined. Starting...";
+            }
+            if (data.type === "player_left") {
+              ensurePlayers(data.players);
+              applyHP(data.hp);
+              promptEl.textContent = "Waiting for opponent...";
+              roundInfoEl.textContent = "Player left";
+              stopCountdown();
+              showScreen(screenLobby);
+            }
+            if (data.type === "round_start") {
+              showScreen(screenBattle);
+              promptEl.textContent = data.prompt || "Round started";
+              roundStartAt = Date.now();
+              applyHP(data.hp);
+              showRoundInfo(data);
+              startCountdown();
+              answerEl.focus();
+            }
+            if (data.type === "round_end") {
+              promptEl.textContent = "Time out. Next round...";
+              roundInfoEl.textContent = "Reason: " + (data.reason || "timeout");
+              stopCountdown();
+            }
+            if (data.type === "update") {
+              applyHP(data.hp);
+              const correct = data.correct ? "correct" : "wrong";
+              roundInfoEl.textContent =
+                "Attack: " + (data.attacker_id || "-") +
+                " -> " + (data.defender_id || "-") +
+                " | damage: " + (data.damage || 0) +
+                " | " + correct;
+              if (data.defender_id) hitEffect(data.defender_id);
+            }
+            if (data.type === "game_over") {
+              promptEl.textContent = "Winner: " + data.winner_id;
+              applyHP(data.hp);
+              roundInfoEl.textContent = "Game over";
+              stopCountdown();
+            }
+          } catch {
+            // ignore parse errors
+          }
+        };
+      }
+
+      btnCreate.onclick = () => showScreen(screenCreate);
+      btnJoin.onclick = () => showScreen(screenJoin);
+
+      btnGenRoom.onclick = () => {
+        const rand = Math.random().toString(36).slice(2, 8);
+        createRoom.value = "room-" + rand;
+        setRoomLink(createLink, createRoom.value.trim());
+      };
+
+      createRoom.addEventListener("input", () => {
+        setRoomLink(createLink, createRoom.value.trim());
+      });
+
+      btnCreateConnect.onclick = () => {
+        currentRoom = createRoom.value.trim() || "room-" + Math.random().toString(36).slice(2, 8);
+        currentUser = createUser.value.trim() || "host";
+        currentLang = createLang.value;
+        currentTopic = createTopic.value;
+        setRoomLink(createLink, currentRoom);
+        connectAndJoin();
+      };
+
+      btnJoinConnect.onclick = () => {
+        currentRoom = joinRoom.value.trim();
+        currentUser = joinUser.value.trim() || "guest";
+        currentLang = "en";
+        currentTopic = "default";
+        if (!currentRoom) return;
+        connectAndJoin();
+      };
+
+      sendBtn.onclick = () => {
+        if (!ws) return;
+        const speed = roundStartAt ? (Date.now() - roundStartAt) : 0;
+        const msg = {
+          type: "answer",
+          room_id: currentRoom,
+          user_id: currentUser,
+          answer: answerEl.value.trim(),
+          speed: speed,
+        };
+        ws.send(JSON.stringify(msg));
+        answerEl.value = "";
+        answerEl.focus();
+      };
+
+      answerEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          sendBtn.click();
+        }
+      });
+
+      const params = new URLSearchParams(window.location.search);
+      const roomFromUrl = params.get("room");
+      if (roomFromUrl) {
+        joinRoom.value = roomFromUrl;
+        showScreen(screenJoin);
+      } else {
+        showScreen(screenStart);
+      }
+    </script>
+  </body>
+</html>

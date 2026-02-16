@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LangDuel MVP Client</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 760px;
+        margin: 24px auto;
+        padding: 0 16px;
+      }
+      input, button {
+        padding: 8px;
+        margin: 4px 0;
+      }
+      #log {
+        border: 1px solid #ccc;
+        padding: 8px;
+        height: 260px;
+        overflow: auto;
+        white-space: pre-wrap;
+        background: #fafafa;
+      }
+      .row { display: flex; gap: 8px; align-items: center; }
+      .row > * { flex: 1; }
+      .small { font-size: 12px; color: #666; }
+    </style>
+  </head>
+  <body>
+    <h1>LangDuel MVP Client</h1>
+
+    <div class="row">
+      <input id="wsUrl" value="ws://localhost:8080/ws" />
+      <button id="connectBtn">Connect</button>
+      <button id="disconnectBtn" disabled>Disconnect</button>
+    </div>
+
+    <div class="row">
+      <input id="roomId" placeholder="room_id" value="room1" />
+      <input id="userId" placeholder="user_id" value="u1" />
+      <button id="joinBtn" disabled>Join</button>
+    </div>
+
+    <div class="row">
+      <input id="answer" placeholder="answer" />
+      <button id="sendAnswerBtn" disabled>Send Answer</button>
+    </div>
+    <div class="small">Speed is measured automatically from last round_start.</div>
+
+    <h3>Current prompt</h3>
+    <div id="prompt">-</div>
+
+    <h3>Log</h3>
+    <div id="log"></div>
+
+    <script>
+      let ws = null;
+      let roundStartAt = null;
+
+      const logEl = document.getElementById("log");
+      const promptEl = document.getElementById("prompt");
+      const wsUrlEl = document.getElementById("wsUrl");
+      const roomIdEl = document.getElementById("roomId");
+      const userIdEl = document.getElementById("userId");
+      const answerEl = document.getElementById("answer");
+
+      const connectBtn = document.getElementById("connectBtn");
+      const disconnectBtn = document.getElementById("disconnectBtn");
+      const joinBtn = document.getElementById("joinBtn");
+      const sendAnswerBtn = document.getElementById("sendAnswerBtn");
+
+      function log(msg) {
+        logEl.textContent += msg + "\n";
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      function setConnected(state) {
+        connectBtn.disabled = state;
+        disconnectBtn.disabled = !state;
+        joinBtn.disabled = !state;
+        sendAnswerBtn.disabled = !state;
+      }
+
+      connectBtn.onclick = () => {
+        ws = new WebSocket(wsUrlEl.value);
+        ws.onopen = () => {
+          setConnected(true);
+          log("WS connected");
+        };
+        ws.onclose = () => {
+          setConnected(false);
+          log("WS closed");
+        };
+        ws.onerror = () => {
+          log("WS error");
+        };
+        ws.onmessage = (ev) => {
+          log("<= " + ev.data);
+          try {
+            const data = JSON.parse(ev.data);
+            if (data.type === "round_start") {
+              promptEl.textContent = data.prompt || "-";
+              roundStartAt = Date.now();
+            }
+            if (data.type === "game_over") {
+              promptEl.textContent = "-";
+            }
+          } catch (e) {
+            // ignore parse errors for raw logs
+          }
+        };
+      };
+
+      disconnectBtn.onclick = () => {
+        if (ws) ws.close();
+      };
+
+      joinBtn.onclick = () => {
+        const msg = {
+          type: "join",
+          room_id: roomIdEl.value.trim(),
+          user_id: userIdEl.value.trim(),
+        };
+        ws.send(JSON.stringify(msg));
+        log("=> " + JSON.stringify(msg));
+      };
+
+      sendAnswerBtn.onclick = () => {
+        const speed = roundStartAt ? (Date.now() - roundStartAt) : 0;
+        const msg = {
+          type: "answer",
+          room_id: roomIdEl.value.trim(),
+          user_id: userIdEl.value.trim(),
+          answer: answerEl.value.trim(),
+          speed: speed,
+        };
+        ws.send(JSON.stringify(msg));
+        log("=> " + JSON.stringify(msg));
+      };
+    </script>
+  </body>
+</html>
