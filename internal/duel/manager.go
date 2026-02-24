@@ -35,6 +35,7 @@ type Event struct {
 	DefenderID string         `json:"defender_id,omitempty"`
 	Damage     int            `json:"damage,omitempty"`
 	Correct    bool           `json:"correct,omitempty"`
+	Speed      int            `json:"speed,omitempty"`
 	WinnerID   string         `json:"winner_id,omitempty"`
 	Reason     string         `json:"reason,omitempty"`
 	Error      string         `json:"error,omitempty"`
@@ -133,11 +134,13 @@ func (m *Manager) SubmitAnswer(roomID, userID, answer string, speed int) ([]Even
 	events := []Event{{
 		Type:       "update",
 		RoomID:     room.ID,
+		Round:      room.Round,
 		HP:         room.hpMapLocked(),
 		AttackerID: attacker.ID,
 		DefenderID: defender.ID,
 		Damage:     damage,
 		Correct:    correct,
+		Speed:      speed,
 	}}
 
 	if defender.HP <= 0 {
@@ -263,6 +266,21 @@ func (m *Manager) getRoom(id string) (*Room, error) {
 		return nil, ErrRoomNotFound
 	}
 	return room, nil
+}
+
+// HasPlayer проверяет, есть ли игрок в комнате.
+func (m *Manager) HasPlayer(roomID, userID string) bool {
+	if roomID == "" || userID == "" {
+		return false
+	}
+	room, err := m.getRoom(roomID)
+	if err != nil {
+		return false
+	}
+	room.mu.Lock()
+	defer room.mu.Unlock()
+	_, ok := room.Players[userID]
+	return ok
 }
 
 // normalize: trim + lowercase перед сравнением.

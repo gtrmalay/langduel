@@ -15,6 +15,11 @@ type Client struct {
 	// Нужен для регистрации, удаления клиента и рассылки сообщений.
 	hub  *Hub
 
-	userID string
+	// displayName реальное имя для игры/UI.
+	displayName string
+
+	// authUserID UUID из JWT (ид в БД).
+	authUserID string
+
 	roomID string
 }

@@ -30,6 +30,10 @@
         margin: 32px auto;
         padding: 0 20px 40px;
       }
+      .panel {
+        display: grid;
+        gap: 18px;
+      }
       header {
         display: flex;
         align-items: center;
@@ -45,11 +49,50 @@
         font-size: 12px;
         color: var(--muted);
       }
+      .notice {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid #1f2937;
+        background: #0b1220;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .notice.error {
+        border-color: rgba(239,68,68,0.5);
+        color: #fecaca;
+        background: rgba(239,68,68,0.08);
+      }
+      .game-over {
+        margin-top: 20px;
+        padding: 16px;
+        border-radius: 12px;
+        border: 1px solid #1f2937;
+        background: #0b1220;
+        display: grid;
+        gap: 12px;
+      }
+      .stats {
+        margin-top: 18px;
+        padding: 14px;
+        border-radius: 12px;
+        border: 1px solid #1f2937;
+        background: #0b1220;
+        display: grid;
+        gap: 10px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .stats-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+      }
       .panel {
         background: var(--panel);
         border-radius: 14px;
-        padding: 16px;
-        margin-top: 16px;
+        padding: 26px;
+        margin-top: 30px;
         border: 1px solid #1f2937;
         box-shadow: 0 10px 24px rgba(0,0,0,0.25);
       }
@@ -64,7 +107,10 @@
       .controls {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 12px;
+        gap: 26px;
+      }
+      .panel .controls + .controls {
+        margin-top: 6px;
       }
       .controls.one { grid-template-columns: 1fr; }
       .controls.three { grid-template-columns: 1fr 1fr 1fr; }
@@ -91,10 +137,68 @@
       .small {
         font-size: 12px;
         color: var(--muted);
+        margin-top: 20px;
+      }
+      .hint {
+        font-size: 12px;
+        color: var(--muted);
         margin-top: 10px;
       }
+      .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid #1f2937;
+        background: #0b1220;
+        font-size: 12px;
+        color: var(--muted);
+        height: 34px;
+      }
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--muted);
+      }
+      .status-dot.on { background: var(--accent); }
+      .toggle {
+        display: inline-flex;
+        gap: 4px;
+        align-items: center;
+        background: #0b1220;
+        border: 1px solid #1f2937;
+        border-radius: 999px;
+        padding: 3px;
+        width: fit-content;
+      }
+      .toggle button {
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--muted);
+        font-size: 12px;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+      }
+      .toggle button.active {
+        color: var(--text);
+        background: #1f2937;
+        border-color: #2b3647;
+      }
+      .section {
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid #1f2937;
+        background: #0b1220;
+        margin-top: 8px;
+        display: grid;
+        gap: 16px;
+      }
       .link {
-        margin-top: 6px;
+        margin-top: 20px;
         word-break: break-all;
         color: var(--muted);
       }
@@ -104,7 +208,7 @@
       .arena {
         display: grid;
         grid-template-columns: 1fr 120px 1fr;
-        gap: 16px;
+        gap: 34px;
         align-items: center;
         margin-top: 12px;
       }
@@ -162,22 +266,22 @@
         box-shadow: inset 0 0 12px rgba(245,158,11,0.2);
       }
       .prompt {
-        margin-top: 20px;
+        margin-top: 38px;
         background: var(--panel);
         border-radius: 14px;
-        padding: 16px;
+        padding: 26px;
         text-align: center;
         font-size: 22px;
         letter-spacing: 0.5px;
       }
       .timer {
-        margin-top: 8px;
+        margin-top: 16px;
         text-align: center;
         font-size: 14px;
         color: var(--warn);
       }
       .sub {
-        margin-top: 8px;
+        margin-top: 16px;
         text-align: center;
         color: var(--muted);
         font-size: 12px;
@@ -203,7 +307,7 @@
       @media (max-width: 720px) {
         .arena { grid-template-columns: 1fr; }
         .vs { display: none; }
-        .controls { grid-template-columns: 1fr; }
+        .controls { grid-template-columns: 1fr; gap: 18px; }
       }
     </style>
   </head>
@@ -222,52 +326,117 @@
         <h3>Start</h3>
         <div class="controls three">
           <input id="wsUrl" value="ws://localhost:8080/ws" />
-          <button id="btnCreate">Create Duel</button>
-          <button id="btnJoin">Join Duel</button>
+          <div class="toggle" role="tablist" aria-label="Flow">
+            <button id="flowCreate" class="active" type="button">Create</button>
+            <button id="flowJoin" type="button">Join</button>
+          </div>
+          <button id="btnConnect">Create & Connect</button>
         </div>
-        <div class="small">Create generates a room link. Join opens by link or room id.</div>
-      </div>
-
-      <!-- Step 2: Create -->
-      <div class="panel hidden" id="screenCreate">
-        <h3>Create Duel</h3>
+        <div class="notice error hidden" id="startError"></div>
+        <div class="controls two">
+          <div class="toggle" role="tablist" aria-label="Mode">
+            <button id="modeGuest" class="active" type="button">Guest</button>
+            <button id="modeAuth" type="button">Auth</button>
+          </div>
+          <div class="status-badge" id="authInfo">
+            <span class="status-dot" id="authDot"></span>
+            <span id="authText">Mode: Guest</span>
+          </div>
+        </div>
+        <div class="section hidden" id="authBlock">
+          <div class="controls two">
+            <div class="toggle" role="tablist" aria-label="Auth mode">
+              <button id="authLoginTab" class="active" type="button">Login</button>
+              <button id="authRegTab" type="button">Register</button>
+            </div>
+            <div class="small">Account access</div>
+          </div>
+          <div class="controls three" id="loginFields">
+            <input id="authLogin" placeholder="Username" />
+            <input id="authPass" type="password" placeholder="Password" />
+            <button id="btnLogin">Login</button>
+          </div>
+          <div class="controls three hidden" id="regFields">
+            <input id="authEmail" placeholder="Email" />
+            <input id="regConfirm" type="password" placeholder="Confirm password" />
+            <button id="btnRegister">Register</button>
+          </div>
+          <div class="notice error hidden" id="authError"></div>
+        </div>
         <div class="controls three">
-          <input id="createUser" placeholder="Nickname (Guest)" value="Guest1" />
-          <select id="createLang">
-            <option value="en" selected>English</option>
-          </select>
-          <select id="createTopic">
-            <option value="default" selected>Default pack</option>
-            <option value="animals">Animals</option>
-            <option value="travel">Travel</option>
-            <option value="food">Food</option>
-          </select>
+          <input id="jwtToken" placeholder="JWT token (optional)" />
+          <button id="btnClearToken">Clear Token</button>
+          <div class="hint">Token auto-saves locally</div>
         </div>
-        <div class="controls three">
-          <input id="createRoom" placeholder="room_id" />
-          <button id="btnGenRoom">Generate Room</button>
-          <button id="btnCreateConnect">Create & Connect</button>
+        <div class="section" id="blockCreate">
+          <div class="controls two">
+            <h3 style="margin:0">Create Duel</h3>
+            <button id="btnToggleCreate">Collapse</button>
+          </div>
+          <div id="createBody">
+          <div class="controls three">
+            <input id="createUser" placeholder="Nickname (Guest)" value="" />
+            <select id="createLang">
+              <option value="en" selected>English</option>
+            </select>
+            <select id="createTopic">
+              <option value="default" selected>Default pack</option>
+              <option value="animals">Animals</option>
+              <option value="travel">Travel</option>
+              <option value="food">Food</option>
+            </select>
+          </div>
+          <div class="controls three">
+            <input id="createRoom" placeholder="room_id" />
+            <button id="btnGenRoom">Generate Room</button>
+            <div class="small">Create generates a room link.</div>
+          </div>
+          <div class="controls two">
+            <div class="link">Room link: <span id="createLink">-</span></div>
+            <button id="btnCopyLink">Copy Link</button>
+          </div>
+          <div class="small hidden" id="createCopyNote">Link copied</div>
+          </div>
         </div>
-        <div class="link">Room link: <span id="createLink">-</span></div>
-        <div class="small">Guest entry: just type a nickname.</div>
-      </div>
-
-      <!-- Step 3: Join -->
-      <div class="panel hidden" id="screenJoin">
-        <h3>Join Duel</h3>
-        <div class="controls three">
-          <input id="joinUser" placeholder="Nickname (Guest)" value="Guest2" />
-          <input id="joinRoom" placeholder="room_id" />
-          <button id="btnJoinConnect">Join & Connect</button>
+        <div class="section hidden" id="blockJoin">
+          <h3>Join Duel</h3>
+          <div class="controls three">
+            <input id="joinUser" placeholder="Nickname (Guest)" value="" />
+            <input id="joinRoom" placeholder="room_id" />
+            <div class="small">Join by room id or link.</div>
+          </div>
         </div>
-        <div class="small">Guest entry: just type a nickname.</div>
       </div>
 
       <!-- Step 4: Lobby -->
       <div class="panel hidden" id="screenLobby">
         <h3>Lobby</h3>
         <div class="small" id="lobbyText">Waiting for opponent...</div>
-        <div class="link">Room link: <span id="lobbyLink">-</span></div>
+        <div class="controls two">
+          <div class="link">Room link: <span id="lobbyLink">-</span></div>
+          <button id="btnLobbyCopy">Copy Link</button>
+        </div>
+        <div class="small hidden" id="lobbyCopyNote">Link copied</div>
+      </div>
+      <div class="panel hidden" id="screenReconnect">
+        <h3>Connection lost</h3>
+        <div class="small">We lost connection. You can try again.</div>
+        <div class="controls two">
+          <button id="btnReconnect">Reconnect</button>
+          <button id="btnBackToStart">Back to start</button>
+        </div>
+        <div class="small hidden" id="reconnectNote">Reconnecting...</div>
+      </div>
+
+      <!-- Join Gate -->
+      <div class="panel hidden" id="screenJoinGate">
+        <h3>Join Duel</h3>
+        <div class="small">Enter nickname to join the room</div>
+        <div class="controls two">
+          <input id="gateNick" placeholder="Nickname (Guest)" />
+          <button id="btnGateJoin">Join</button>
+        </div>
+        <div class="small">Or login to use your account.</div>
       </div>
 
       <!-- Step 5: Battle -->
@@ -289,6 +458,12 @@
         <div class="prompt" id="prompt">Waiting for round...</div>
         <div class="timer" id="timer">-</div>
         <div class="sub" id="roundInfo">-</div>
+        <div class="stats" id="statsPanel">
+          <div class="stats-row"><span>Correct</span><span id="statCorrect">0</span></div>
+          <div class="stats-row"><span>Wrong</span><span id="statWrong">0</span></div>
+          <div class="stats-row"><span>Total damage</span><span id="statDamage">0</span></div>
+          <div class="stats-row"><span>Avg speed (ms)</span><span id="statSpeed">-</span></div>
+        </div>
 
         <div class="panel">
           <h3>Answer</h3>
@@ -297,6 +472,13 @@
             <button id="sendBtn" disabled>Send Answer</button>
           </div>
           <div class="small">Speed is counted from last round_start.</div>
+        </div>
+        <div class="game-over hidden" id="gameOverPanel">
+          <div class="small" id="gameOverText">Game over</div>
+          <div class="small" id="gameOverHP">-</div>
+          <div class="controls one">
+            <button id="btnPlayAgain">Play Again</button>
+          </div>
         </div>
       </div>
     </div>
@@ -313,6 +495,14 @@
       const roundInfoEl = document.getElementById("roundInfo");
       const sendBtn = document.getElementById("sendBtn");
       const answerEl = document.getElementById("answer");
+      const gameOverPanel = document.getElementById("gameOverPanel");
+      const gameOverText = document.getElementById("gameOverText");
+      const gameOverHP = document.getElementById("gameOverHP");
+      const btnPlayAgain = document.getElementById("btnPlayAgain");
+      const statCorrect = document.getElementById("statCorrect");
+      const statWrong = document.getElementById("statWrong");
+      const statDamage = document.getElementById("statDamage");
+      const statSpeed = document.getElementById("statSpeed");
 
       const p1El = document.getElementById("p1");
       const p2El = document.getElementById("p2");
@@ -326,39 +516,203 @@
       const p2Card = document.querySelector(".arena .card:nth-child(3)");
 
       const screenStart = document.getElementById("screenStart");
-      const screenCreate = document.getElementById("screenCreate");
-      const screenJoin = document.getElementById("screenJoin");
       const screenLobby = document.getElementById("screenLobby");
+      const screenJoinGate = document.getElementById("screenJoinGate");
+      const screenReconnect = document.getElementById("screenReconnect");
       const screenBattle = document.getElementById("screenBattle");
       const lobbyText = document.getElementById("lobbyText");
       const lobbyLink = document.getElementById("lobbyLink");
+      const btnLobbyCopy = document.getElementById("btnLobbyCopy");
 
       const wsUrlEl = document.getElementById("wsUrl");
-      const btnCreate = document.getElementById("btnCreate");
-      const btnJoin = document.getElementById("btnJoin");
+      const jwtTokenEl = document.getElementById("jwtToken");
+      const authLoginEl = document.getElementById("authLogin");
+      const authPassEl = document.getElementById("authPass");
+      const authEmailEl = document.getElementById("authEmail");
+      const regConfirmEl = document.getElementById("regConfirm");
+      const btnLogin = document.getElementById("btnLogin");
+      const btnRegister = document.getElementById("btnRegister");
+      const authBlock = document.getElementById("authBlock");
+      const authLoginTab = document.getElementById("authLoginTab");
+      const authRegTab = document.getElementById("authRegTab");
+      const regFields = document.getElementById("regFields");
+      const loginFields = document.getElementById("loginFields");
+      const btnClearToken = document.getElementById("btnClearToken");
+      const startError = document.getElementById("startError");
+      const authError = document.getElementById("authError");
+      const btnConnect = document.getElementById("btnConnect");
+      const flowCreate = document.getElementById("flowCreate");
+      const flowJoin = document.getElementById("flowJoin");
+      const blockCreate = document.getElementById("blockCreate");
+      const blockJoin = document.getElementById("blockJoin");
+      const gateNick = document.getElementById("gateNick");
+      const btnGateJoin = document.getElementById("btnGateJoin");
+      const modeGuest = document.getElementById("modeGuest");
+      const modeAuth = document.getElementById("modeAuth");
+      const authInfo = document.getElementById("authInfo");
+      const authDot = document.getElementById("authDot");
+      const authText = document.getElementById("authText");
 
       const createUser = document.getElementById("createUser");
       const createLang = document.getElementById("createLang");
       const createTopic = document.getElementById("createTopic");
       const createRoom = document.getElementById("createRoom");
       const btnGenRoom = document.getElementById("btnGenRoom");
-      const btnCreateConnect = document.getElementById("btnCreateConnect");
       const createLink = document.getElementById("createLink");
+      const btnCopyLink = document.getElementById("btnCopyLink");
+      const createCopyNote = document.getElementById("createCopyNote");
+      const btnToggleCreate = document.getElementById("btnToggleCreate");
+      const createBody = document.getElementById("createBody");
 
       const joinUser = document.getElementById("joinUser");
       const joinRoom = document.getElementById("joinRoom");
-      const btnJoinConnect = document.getElementById("btnJoinConnect");
+      const lobbyCopyNote = document.getElementById("lobbyCopyNote");
+      const btnReconnect = document.getElementById("btnReconnect");
+      const btnBackToStart = document.getElementById("btnBackToStart");
+      const reconnectNote = document.getElementById("reconnectNote");
 
       let currentRoom = "";
       let currentUser = "";
       let currentLang = "en";
       let currentTopic = "default";
       let currentPlayers = ["Player A", "Player B"];
+      let authedUsername = "";
+      let authMode = "guest";
+      let flowMode = "create";
+      let isCreator = false;
+      let isConnecting = false;
+      let lastHP = null;
+      let statC = 0;
+      let statW = 0;
+      let statDmg = 0;
+      let statSpeedSum = 0;
+      let statSpeedCount = 0;
+      const STORAGE_TOKEN_KEY = "langduel_token";
+      const STORAGE_USER_KEY = "langduel_username";
+      const STORAGE_GUEST_KEY = "langduel_guest";
+      const STORAGE_LAST_KEY = "langduel_last_session";
 
       function showScreen(screen) {
-        const all = [screenStart, screenCreate, screenJoin, screenLobby, screenBattle];
+        const all = [screenStart, screenLobby, screenBattle, screenJoinGate, screenReconnect];
         all.forEach(s => s.classList.add("hidden"));
         screen.classList.remove("hidden");
+      }
+      function resetGameOver() {
+        gameOverPanel.classList.add("hidden");
+        gameOverText.textContent = "Game over";
+        gameOverHP.textContent = "-";
+        lastHP = null;
+      }
+      function resetStats() {
+        statC = 0;
+        statW = 0;
+        statDmg = 0;
+        statSpeedSum = 0;
+        statSpeedCount = 0;
+        statCorrect.textContent = "0";
+        statWrong.textContent = "0";
+        statDamage.textContent = "0";
+        statSpeed.textContent = "-";
+      }
+      function updateStats(correct, damage, speed) {
+        if (correct) {
+          statC += 1;
+        } else {
+          statW += 1;
+        }
+        statDmg += damage || 0;
+        if (typeof speed === "number" && speed > 0) {
+          statSpeedSum += speed;
+          statSpeedCount += 1;
+        }
+        statCorrect.textContent = String(statC);
+        statWrong.textContent = String(statW);
+        statDamage.textContent = String(statDmg);
+        if (statSpeedCount > 0) {
+          statSpeed.textContent = String(Math.round(statSpeedSum / statSpeedCount));
+        }
+      }
+      function showError(el, msg) {
+        if (!el) return;
+        if (!msg) {
+          el.textContent = "";
+          el.classList.add("hidden");
+          return;
+        }
+        el.textContent = msg;
+        el.classList.remove("hidden");
+      }
+      function showNote(el, msg) {
+        if (!el) return;
+        if (!msg) {
+          el.textContent = "";
+          el.classList.add("hidden");
+          return;
+        }
+        el.textContent = msg;
+        el.classList.remove("hidden");
+        setTimeout(() => {
+          el.classList.add("hidden");
+        }, 1200);
+      }
+      function saveLastSession() {
+        if (!currentRoom) return;
+        localStorage.setItem(STORAGE_LAST_KEY, JSON.stringify({
+          room: currentRoom,
+          user: currentUser,
+          auth: authMode,
+          flow: flowMode,
+          creator: isCreator,
+        }));
+      }
+      function setConnecting(on) {
+        isConnecting = on;
+        statusEl.textContent = on ? "Connecting..." : statusEl.textContent;
+        btnConnect.disabled = on;
+        btnLogin.disabled = on;
+        btnClearToken.disabled = on;
+        btnGenRoom.disabled = on;
+        btnCopyLink.disabled = on;
+        btnLobbyCopy.disabled = on;
+        btnGateJoin.disabled = on;
+        btnReconnect.disabled = on;
+      }
+      function setFlowMode(mode) {
+        flowMode = mode === "join" ? "join" : "create";
+        flowCreate.classList.toggle("active", flowMode === "create");
+        flowJoin.classList.toggle("active", flowMode === "join");
+        blockCreate.classList.toggle("hidden", flowMode !== "create");
+        blockJoin.classList.toggle("hidden", flowMode !== "join");
+        btnConnect.textContent = flowMode === "create" ? "Create & Connect" : "Join & Connect";
+      }
+      function setAuthMode(mode) {
+        authMode = mode === "auth" ? "auth" : "guest";
+        modeGuest.classList.toggle("active", authMode === "guest");
+        modeAuth.classList.toggle("active", authMode === "auth");
+        if (authMode === "guest") {
+          authText.textContent = "Mode: Guest";
+          authDot.classList.remove("on");
+          createUser.disabled = false;
+          joinUser.disabled = false;
+          authBlock.classList.add("hidden");
+        } else {
+          authText.textContent = authedUsername ? "Mode: Auth (" + authedUsername + ")" : "Mode: Auth";
+          authDot.classList.add("on");
+          createUser.disabled = true;
+          joinUser.disabled = true;
+          authBlock.classList.remove("hidden");
+          if (authedUsername) {
+            createUser.value = authedUsername;
+            joinUser.value = authedUsername;
+          }
+        }
+      }
+      function setAuthTab(tab) {
+        const isReg = tab === "reg";
+        authLoginTab.classList.toggle("active", !isReg);
+        authRegTab.classList.toggle("active", isReg);
+        regFields.classList.toggle("hidden", !isReg);
+        loginFields.classList.toggle("hidden", isReg);
       }
 
       function setHP(el, wrap, label, hp) {
@@ -428,12 +782,28 @@
       function setRoomLink(el, roomId) {
         el.textContent = roomId ? buildRoomLink(roomId) : "-";
       }
+      function ensureRoomId() {
+        if (!createRoom.value.trim()) {
+          const rand = Math.random().toString(36).slice(2, 8);
+          createRoom.value = "room-" + rand;
+        }
+        setRoomLink(createLink, createRoom.value.trim());
+      }
 
       function connectAndJoin() {
-        ws = new WebSocket(wsUrlEl.value);
+        showError(startError, "");
+        if (isConnecting) return;
+        setConnecting(true);
+        const base = wsUrlEl.value.trim();
+        const token = jwtTokenEl.value.trim();
+        const url = token ? `${base}?token=${encodeURIComponent(token)}` : base;
+        ws = new WebSocket(url);
         ws.onopen = () => {
           statusEl.textContent = "Connected";
+          setConnecting(false);
           sendBtn.disabled = false;
+          resetStats();
+          resetGameOver();
           const msg = {
             type: "join",
             room_id: currentRoom,
@@ -442,19 +812,41 @@
             topic: currentTopic,
           };
           ws.send(JSON.stringify(msg));
+          saveLastSession();
           showScreen(screenLobby);
           lobbyText.textContent = "Waiting for opponent...";
-          setRoomLink(lobbyLink, currentRoom);
+          if (isCreator || flowMode === "create") {
+            setRoomLink(lobbyLink, currentRoom);
+            btnLobbyCopy.classList.remove("hidden");
+          } else {
+            lobbyLink.textContent = "-";
+            btnLobbyCopy.classList.add("hidden");
+          }
         };
         ws.onclose = () => {
           statusEl.textContent = "Disconnected";
+          setConnecting(false);
           sendBtn.disabled = true;
           stopCountdown();
-          showScreen(screenStart);
+          if (currentRoom) {
+            showScreen(screenReconnect);
+          } else {
+            showScreen(screenStart);
+          }
         };
         ws.onmessage = (ev) => {
           try {
             const data = JSON.parse(ev.data);
+            if (data.type === "error") {
+              const raw = data.error || "Unknown error";
+              const nice =
+                raw.includes("room is full") ? "Room is full" :
+                raw.includes("room not found") ? "Room not found" :
+                raw.includes("user already in room") ? "User already in room" :
+                raw;
+              showError(startError, nice);
+              return;
+            }
             if (data.type === "room_state") {
               ensurePlayers(data.players);
               applyHP(data.hp);
@@ -490,6 +882,8 @@
             }
             if (data.type === "update") {
               applyHP(data.hp);
+              lastHP = data.hp || lastHP;
+              updateStats(!!data.correct, data.damage || 0, data.speed || 0);
               const correct = data.correct ? "correct" : "wrong";
               roundInfoEl.textContent =
                 "Attack: " + (data.attacker_id || "-") +
@@ -501,8 +895,19 @@
             if (data.type === "game_over") {
               promptEl.textContent = "Winner: " + data.winner_id;
               applyHP(data.hp);
+              lastHP = data.hp || lastHP;
               roundInfoEl.textContent = "Game over";
               stopCountdown();
+              gameOverText.textContent = "Winner: " + (data.winner_id || "-");
+              if (lastHP) {
+                const ids = Object.keys(lastHP);
+                const a = ids[0] ? (ids[0] + ": " + lastHP[ids[0]]) : "-";
+                const b = ids[1] ? (ids[1] + ": " + lastHP[ids[1]]) : "-";
+                gameOverHP.textContent = "Final HP — " + a + " | " + b;
+              } else {
+                gameOverHP.textContent = "-";
+              }
+              gameOverPanel.classList.remove("hidden");
             }
           } catch {
             // ignore parse errors
@@ -510,36 +915,286 @@
         };
       }
 
-      btnCreate.onclick = () => showScreen(screenCreate);
-      btnJoin.onclick = () => showScreen(screenJoin);
+      btnClearToken.onclick = () => {
+        jwtTokenEl.value = "";
+        authedUsername = "";
+        localStorage.removeItem(STORAGE_TOKEN_KEY);
+        localStorage.removeItem(STORAGE_USER_KEY);
+        authLoginEl.value = "";
+        authPassEl.value = "";
+        createUser.value = localStorage.getItem(STORAGE_GUEST_KEY) || "";
+        joinUser.value = localStorage.getItem(STORAGE_GUEST_KEY) || "";
+        setAuthMode("guest");
+      };
+      function httpBaseFromWs(wsUrl) {
+        try {
+          const u = new URL(wsUrl);
+          const proto = u.protocol === "wss:" ? "https:" : "http:";
+          return proto + "//" + u.host;
+        } catch {
+          if (wsUrl.startsWith("ws://")) return "http://" + wsUrl.slice(5).split("/")[0];
+          if (wsUrl.startsWith("wss://")) return "https://" + wsUrl.slice(6).split("/")[0];
+          return wsUrl;
+        }
+      }
+
+      btnLogin.onclick = async () => {
+        try {
+          showError(authError, "");
+          const username = authLoginEl.value.trim();
+          const password = authPassEl.value;
+          if (!username || !password) {
+            showError(authError, "Login and password required");
+            return;
+          }
+          const base = httpBaseFromWs(wsUrlEl.value.trim());
+          const res = await fetch(`${base}/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ login: username, password }),
+          });
+          if (!res.ok) {
+            const text = await res.text();
+            showError(authError, "Login failed: " + text);
+            return;
+          }
+          const data = await res.json();
+          jwtTokenEl.value = data.token || "";
+          if (!jwtTokenEl.value) {
+            showError(authError, "Token not received");
+            return;
+          }
+          authedUsername = data.username || "";
+          localStorage.setItem(STORAGE_TOKEN_KEY, jwtTokenEl.value);
+          if (authedUsername) {
+            localStorage.setItem(STORAGE_USER_KEY, authedUsername);
+          }
+          if (authedUsername) {
+            createUser.value = authedUsername;
+            joinUser.value = authedUsername;
+            setAuthMode("auth");
+          }
+        } catch (e) {
+          showError(authError, "Auth error: " + (e && e.message ? e.message : e));
+        }
+      };
+      btnRegister.onclick = async () => {
+        try {
+          showError(authError, "");
+          const username = authLoginEl.value.trim();
+          const password = authPassEl.value;
+          const email = authEmailEl.value.trim();
+          const confirm = regConfirmEl.value;
+          if (!username || !password) {
+            showError(authError, "Username and password required");
+            return;
+          }
+          if (confirm !== password) {
+            showError(authError, "Passwords do not match");
+            return;
+          }
+          const base = httpBaseFromWs(wsUrlEl.value.trim());
+          const res = await fetch(`${base}/auth/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, email, password }),
+          });
+          if (!res.ok) {
+            const text = await res.text();
+            showError(authError, "Register failed: " + text);
+            return;
+          }
+          const data = await res.json();
+          jwtTokenEl.value = data.token || "";
+          if (!jwtTokenEl.value) {
+            showError(authError, "Token not received");
+            return;
+          }
+          authedUsername = data.username || "";
+          localStorage.setItem(STORAGE_TOKEN_KEY, jwtTokenEl.value);
+          if (authedUsername) {
+            localStorage.setItem(STORAGE_USER_KEY, authedUsername);
+            createUser.value = authedUsername;
+            joinUser.value = authedUsername;
+            setAuthMode("auth");
+          }
+        } catch (e) {
+          showError(authError, "Register error: " + (e && e.message ? e.message : e));
+        }
+      };
+      authPassEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          btnLogin.click();
+        }
+      });
+      authLoginTab.onclick = () => setAuthTab("login");
+      authRegTab.onclick = () => setAuthTab("reg");
+
+      async function syncAuthFromToken() {
+        const token = jwtTokenEl.value.trim();
+        if (!token) {
+          authedUsername = "";
+          setAuthMode("guest");
+          return;
+        }
+        try {
+          const base = httpBaseFromWs(wsUrlEl.value.trim());
+          const res = await fetch(`${base}/me`, {
+            headers: { Authorization: "Bearer " + token },
+          });
+          if (!res.ok) {
+            authedUsername = "";
+            setAuthMode("guest");
+            return;
+          }
+          const data = await res.json();
+          authedUsername = data.username || "";
+          if (authedUsername) {
+            localStorage.setItem(STORAGE_TOKEN_KEY, token);
+            localStorage.setItem(STORAGE_USER_KEY, authedUsername);
+            setAuthMode("auth");
+          } else {
+            setAuthMode("guest");
+          }
+        } catch {
+          authedUsername = "";
+          setAuthMode("guest");
+        }
+      }
 
       btnGenRoom.onclick = () => {
         const rand = Math.random().toString(36).slice(2, 8);
         createRoom.value = "room-" + rand;
         setRoomLink(createLink, createRoom.value.trim());
       };
+      btnCopyLink.onclick = async () => {
+        ensureRoomId();
+        const link = buildRoomLink(createRoom.value.trim());
+        try {
+          await navigator.clipboard.writeText(link);
+          showNote(createCopyNote, "Link copied");
+        } catch {
+          showNote(createCopyNote, "Copy failed");
+        }
+      };
+      btnLobbyCopy.onclick = async () => {
+        if (!currentRoom) return;
+        const link = buildRoomLink(currentRoom);
+        try {
+          await navigator.clipboard.writeText(link);
+          showNote(lobbyCopyNote, "Link copied");
+        } catch {
+          showNote(lobbyCopyNote, "Copy failed");
+        }
+      };
+      btnToggleCreate.onclick = () => {
+        const hidden = createBody.classList.toggle("hidden");
+        btnToggleCreate.textContent = hidden ? "Expand" : "Collapse";
+      };
+      btnReconnect.onclick = () => {
+        showNote(reconnectNote, "Reconnecting...");
+        connectAndJoin();
+      };
+      btnBackToStart.onclick = () => {
+        currentRoom = "";
+        localStorage.removeItem(STORAGE_LAST_KEY);
+        showScreen(screenStart);
+      };
+      btnLobbyCopy.onclick = async () => {
+        if (!currentRoom) return;
+        const link = buildRoomLink(currentRoom);
+        try {
+          await navigator.clipboard.writeText(link);
+          showNote(lobbyCopyNote, "Link copied");
+        } catch {
+          showNote(lobbyCopyNote, "Copy failed");
+        }
+      };
 
       createRoom.addEventListener("input", () => {
         setRoomLink(createLink, createRoom.value.trim());
       });
 
-      btnCreateConnect.onclick = () => {
-        currentRoom = createRoom.value.trim() || "room-" + Math.random().toString(36).slice(2, 8);
-        currentUser = createUser.value.trim() || "host";
-        currentLang = createLang.value;
-        currentTopic = createTopic.value;
-        setRoomLink(createLink, currentRoom);
-        connectAndJoin();
+      btnConnect.onclick = () => {
+        showError(startError, "");
+        if (flowMode === "create") {
+          ensureRoomId();
+          currentRoom = createRoom.value.trim();
+          isCreator = true;
+          if (authMode === "auth") {
+            if (!authedUsername) {
+              showError(startError, "Auth mode enabled, but no user is logged in");
+              return;
+            }
+            currentUser = authedUsername;
+          } else {
+            let guest = createUser.value.trim();
+            if (!guest) {
+              guest = "Guest-" + Math.random().toString(36).slice(2, 6);
+            }
+            currentUser = guest;
+            createUser.value = guest;
+            joinUser.value = guest;
+            localStorage.setItem(STORAGE_GUEST_KEY, guest);
+          }
+          currentLang = createLang.value;
+          currentTopic = createTopic.value;
+          setRoomLink(createLink, currentRoom);
+          saveLastSession();
+          connectAndJoin();
+        } else {
+          currentRoom = joinRoom.value.trim();
+          isCreator = false;
+          if (authMode === "auth") {
+            if (!authedUsername) {
+              showError(startError, "Auth mode enabled, but no user is logged in");
+              return;
+            }
+            currentUser = authedUsername;
+          } else {
+            let guest = joinUser.value.trim();
+            if (!guest) {
+              guest = "Guest-" + Math.random().toString(36).slice(2, 6);
+            }
+            currentUser = guest;
+            joinUser.value = guest;
+            createUser.value = guest;
+            localStorage.setItem(STORAGE_GUEST_KEY, guest);
+          }
+          currentLang = "en";
+          currentTopic = "default";
+          if (!currentRoom) {
+            showError(startError, "Room ID is required");
+            return;
+          }
+          saveLastSession();
+          connectAndJoin();
+        }
       };
-
-      btnJoinConnect.onclick = () => {
-        currentRoom = joinRoom.value.trim();
-        currentUser = joinUser.value.trim() || "guest";
+      btnGateJoin.onclick = () => {
+        showError(startError, "");
+        if (!currentRoom) return;
+        isCreator = false;
+        let guest = gateNick.value.trim();
+        if (!guest) {
+          guest = "Guest-" + Math.random().toString(36).slice(2, 6);
+        }
+        currentUser = guest;
+        joinUser.value = guest;
+        createUser.value = guest;
+        localStorage.setItem(STORAGE_GUEST_KEY, guest);
         currentLang = "en";
         currentTopic = "default";
-        if (!currentRoom) return;
+        saveLastSession();
         connectAndJoin();
       };
+      gateNick.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          btnGateJoin.click();
+        }
+      });
 
       sendBtn.onclick = () => {
         if (!ws) return;
@@ -555,6 +1210,16 @@
         answerEl.value = "";
         answerEl.focus();
       };
+      btnPlayAgain.onclick = () => {
+        try {
+          if (ws) {
+            ws.close();
+          }
+        } catch {}
+        setFlowMode("create");
+        ensureRoomId();
+        showScreen(screenStart);
+      };
 
       answerEl.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
@@ -567,10 +1232,63 @@
       const roomFromUrl = params.get("room");
       if (roomFromUrl) {
         joinRoom.value = roomFromUrl;
-        showScreen(screenJoin);
+        setFlowMode("join");
+        currentRoom = roomFromUrl;
+        if (jwtTokenEl.value.trim()) {
+          setTimeout(() => {
+            btnConnect.click();
+          }, 50);
+        } else {
+          showScreen(screenJoinGate);
+        }
       } else {
-        showScreen(screenStart);
+        const last = localStorage.getItem(STORAGE_LAST_KEY);
+        if (last) {
+          try {
+            const s = JSON.parse(last);
+            currentRoom = s.room || "";
+            currentUser = s.user || "";
+            isCreator = !!s.creator;
+            if (s.flow) setFlowMode(s.flow);
+            if (s.auth) setAuthMode(s.auth);
+          } catch {
+            localStorage.removeItem(STORAGE_LAST_KEY);
+          }
+          if (currentRoom) {
+            if (!currentUser && authMode !== "auth") {
+              joinRoom.value = currentRoom;
+              setFlowMode("join");
+              showScreen(screenJoinGate);
+            } else {
+              showScreen(screenReconnect);
+            }
+          } else {
+            showScreen(screenStart);
+          }
+        } else {
+          showScreen(screenStart);
+        }
       }
+      setAuthTab("login");
+      flowCreate.onclick = () => setFlowMode("create");
+      flowJoin.onclick = () => setFlowMode("join");
+      modeGuest.onclick = () => setAuthMode("guest");
+      modeAuth.onclick = () => setAuthMode("auth");
+      jwtTokenEl.addEventListener("change", syncAuthFromToken);
+      const storedToken = localStorage.getItem(STORAGE_TOKEN_KEY) || "";
+      const storedUser = localStorage.getItem(STORAGE_USER_KEY) || "";
+      const storedGuest = localStorage.getItem(STORAGE_GUEST_KEY) || "";
+      if (storedToken) {
+        jwtTokenEl.value = storedToken;
+      }
+      if (storedUser) {
+        authedUsername = storedUser;
+      }
+      if (storedGuest) {
+        createUser.value = storedGuest;
+        joinUser.value = storedGuest;
+      }
+      syncAuthFromToken();
     </script>
   </body>
 </html>

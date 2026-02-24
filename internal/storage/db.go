@@ -2,17 +2,35 @@ package storage
 
 import (
 	"context"
-	"errors"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var ErrNotImplemented = errors.New("storage not implemented")
+type DB struct {
+	Pool *pgxpool.Pool
+}
 
-// DB is a placeholder for a future PostgreSQL connection.
-// It allows the rest of the app to compile without wiring DB yet.
-type DB struct{}
-
+// Open creates a pgx connection pool.
 func Open(ctx context.Context, dsn string) (*DB, error) {
-	_ = ctx
-	_ = dsn
-	return nil, ErrNotImplemented
+	cfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, err
+	}
+	cfg.MaxConns = 10
+	cfg.MinConns = 1
+	cfg.MaxConnLifetime = 30 * time.Minute
+	cfg.MaxConnIdleTime = 5 * time.Minute
+
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &DB{Pool: pool}, nil
+}
+
+func (db *DB) Close() {
+	if db != nil && db.Pool != nil {
+		db.Pool.Close()
+	}
 }
