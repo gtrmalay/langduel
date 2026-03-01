@@ -471,6 +471,10 @@ func scheduleRoundTimeout(roomID string, token int) {
 			return
 		}
 		for _, ev := range events {
+			// If round_start is produced by timeout, arm the next timer.
+			if ev.Type == "round_start" {
+				scheduleRoundTimeout(roomID, ev.RoundToken)
+			}
 			broadcastRoom(hub, roomID, ev)
 		}
 	})

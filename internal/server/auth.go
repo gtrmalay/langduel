@@ -2,6 +2,8 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -195,10 +197,41 @@ func (s *Server) handleMyStats(w http.ResponseWriter, r *http.Request, u authedU
 		http.Error(w, "db not configured", http.StatusServiceUnavailable)
 		return
 	}
+	log.Printf("GET /me/stats user_id=%s", u.ID)
 	stats, err := repo.GetUserStats(r.Context(), u.ID)
 	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			log.Printf("GET /me/stats not found, returning zeros user_id=%s", u.ID)
+			writeJSON(w, map[string]any{
+				"user_id":             u.ID,
+				"total_duels_played":  0,
+				"total_duels_won":     0,
+				"total_score":         0,
+				"overall_accuracy":    0,
+				"best_win_streak":     0,
+				"total_play_time_min": 0,
+				"updated_at":          "",
+			})
+			return
+		}
+		log.Printf("GET /me/stats error: %v", err)
 		http.Error(w, "stats not found", http.StatusNotFound)
 		return
 	}
+	log.Printf("GET /me/stats ok user_id=%s", u.ID)
 	writeJSON(w, stats)
+}
+
+func (s *Server) handleMyDuels(w http.ResponseWriter, r *http.Request, u authedUser) {
+	if repo == nil {
+		http.Error(w, "db not configured", http.StatusServiceUnavailable)
+		return
+	}
+	items, err := repo.GetRecentDuels(r.Context(), u.ID, 0)
+	if err != nil {
+		log.Printf("GET /me/duels error: %v", err)
+		writeJSON(w, []any{})
+		return
+	}
+	writeJSON(w, items)
 }

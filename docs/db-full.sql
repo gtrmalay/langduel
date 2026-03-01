@@ -26,6 +26,7 @@ CREATE TABLE duels (
   duel_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   room_code VARCHAR(32) NOT NULL UNIQUE,
   created_by_user_id UUID NOT NULL REFERENCES users(user_id),
+  winner_user_id UUID REFERENCES users(user_id),
   language_from VARCHAR(10) NOT NULL DEFAULT 'en',
   language_to VARCHAR(10) NOT NULL DEFAULT 'ru',
   theme VARCHAR(30) NOT NULL DEFAULT 'default',
@@ -131,3 +132,9 @@ CREATE TABLE language_statistics (
   words_translated INT NOT NULL DEFAULT 0,
   UNIQUE (user_id, language_from, language_to)
 );
+
+CREATE INDEX IF NOT EXISTS idx_duels_created_at ON duels(created_at);
+CREATE INDEX IF NOT EXISTS idx_duels_created_by ON duels(created_by_user_id);
+CREATE INDEX IF NOT EXISTS idx_duel_participants_user ON duel_participants(user_id);
+CREATE INDEX IF NOT EXISTS idx_game_rounds_duel ON game_rounds(duel_id);
+CREATE INDEX IF NOT EXISTS idx_player_answers_round ON player_answers(round_id);

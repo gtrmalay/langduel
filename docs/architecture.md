@@ -99,6 +99,21 @@ HTTP слой, маршруты.
 - Если ответа нет за `roundTimeout`, сервер шлет `round_end` и начинает следующий раунд.
 - Таймер не наносит урон, он просто не дает игре “зависнуть”.
 
+## Контракт событий (фиксируем для Svelte)
+Клиент -> сервер:
+- `join`: `room_id`, `user_id`, `lang`, `topic`
+- `answer`: `room_id`, `user_id`, `answer`, `speed`
+
+Сервер -> клиент:
+- `room_state`: `room_id`, `round`, `round_token`, `prompt`, `players`, `hp`
+- `player_joined`: `room_id`, `players`, `hp`
+- `player_left`: `room_id`, `players`, `hp`, `reason`
+- `round_start`: `room_id`, `round`, `round_token`, `prompt`, `hp`
+- `round_end`: `room_id`, `round`, `round_token`, `prompt`, `reason`, `hp`
+- `update`: `room_id`, `attacker_id`, `defender_id`, `damage`, `correct`, `speed`, `hp`
+- `game_over`: `room_id`, `winner_id`, `hp`
+- `error`: `room_id`, `error`
+
 ## Где менять поведение
 
 - Изменить логику боя: `internal/duel/*`
@@ -119,3 +134,10 @@ HTTP слой, маршруты.
 2. База заранее подготовленных наборов фраз.
 
 Рекомендуемый путь: оставить ручные наборы в MVP, а ИИ добавить как заменяемый источник позже.
+
+## MVP Limitations (current)
+- No achievements/skins/ratings yet.
+- No AI-generated phrases yet.
+- No matchmaking/queue.
+- Frontend is a test UI; Svelte will replace it.
+

@@ -63,3 +63,30 @@ func TestSubmitAnswerWrongNoRoundStart(t *testing.T) {
 		t.Fatalf("did not expect round_start on wrong answer")
 	}
 }
+
+func TestRoundTimeoutAdvances(t *testing.T) {
+	m := NewManager()
+	if _, err := m.Join("room1", "u1", "default", "en"); err != nil {
+		t.Fatalf("join u1: %v", err)
+	}
+	events, err := m.Join("room1", "u2", "default", "en")
+	if err != nil {
+		t.Fatalf("join u2: %v", err)
+	}
+	var token int
+	for _, ev := range events {
+		if ev.Type == "round_start" {
+			token = ev.RoundToken
+		}
+	}
+	if token == 0 {
+		t.Fatalf("expected round_start token")
+	}
+	tEvents, err := m.RoundTimeout("room1", token)
+	if err != nil {
+		t.Fatalf("timeout: %v", err)
+	}
+	if !hasType(tEvents, "round_end") || !hasType(tEvents, "round_start") {
+		t.Fatalf("expected round_end and round_start on timeout")
+	}
+}

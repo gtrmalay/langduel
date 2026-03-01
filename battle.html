@@ -88,6 +88,94 @@
         justify-content: space-between;
         gap: 12px;
       }
+      .profile {
+        padding: 14px;
+        border-radius: 12px;
+        border: 1px solid #1f2937;
+        background: #0b1220;
+        display: grid;
+        gap: 10px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .profile-fab {
+        position: fixed;
+        top: 18px;
+        right: 18px;
+        z-index: 40;
+        border-radius: 999px;
+        padding: 10px 14px;
+        border: 1px solid #1f2937;
+        background: #0b1220;
+        color: var(--text);
+        box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+      }
+      .profile-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.4);
+        z-index: 45;
+      }
+      .profile-panel {
+        position: fixed;
+        top: 70px;
+        right: 18px;
+        width: 320px;
+        z-index: 50;
+        background: var(--panel);
+        border: 1px solid #1f2937;
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+      }
+      .profile-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+      .profile-actions {
+        display: grid;
+        gap: 10px;
+        margin-top: 12px;
+      }
+      .profile-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .duel-list {
+        display: grid;
+        gap: 10px;
+      }
+      .duel-card {
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid #1f2937;
+        background: #0b1220;
+        display: grid;
+        gap: 6px;
+      }
+      .duel-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 12px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid #1f2937;
+        background: #0b1220;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .badge.win { color: #bbf7d0; border-color: rgba(34,197,94,0.5); }
+      .badge.loss { color: #fecaca; border-color: rgba(239,68,68,0.5); }
+      .badge.pending { color: #fde68a; border-color: rgba(245,158,11,0.5); }
       .panel {
         background: var(--panel);
         border-radius: 14px;
@@ -115,6 +203,10 @@
       .controls.one { grid-template-columns: 1fr; }
       .controls.three { grid-template-columns: 1fr 1fr 1fr; }
       .controls.four { grid-template-columns: 1fr 1fr 1fr 1fr; }
+      .controls.flow {
+        grid-template-columns: minmax(160px, 1fr) auto auto;
+        align-items: center;
+      }
       input, button, select {
         padding: 12px;
         border-radius: 12px;
@@ -294,7 +386,7 @@
         50% { box-shadow: 0 0 18px rgba(239,68,68,0.9); }
         100% { box-shadow: 0 0 0 rgba(239,68,68,0); }
       }
-      .badge {
+      .title-badge {
         display: inline-block;
         padding: 4px 10px;
         border-radius: 999px;
@@ -316,16 +408,39 @@
       <header>
         <div>
           <div class="title">LangDuel Demo</div>
-          <div class="badge">DUEL MODE</div>
+          <div class="title-badge">DUEL MODE</div>
         </div>
         <div class="status" id="status">Disconnected</div>
       </header>
 
+      <button id="profileFab" class="profile-fab hidden">Profile</button>
+      <div id="profileBackdrop" class="profile-backdrop hidden"></div>
+      <div class="profile-panel hidden" id="profileBlock">
+        <div class="profile-title">
+          <h3 style="margin:0">Profile</h3>
+          <button id="btnProfileClose">Close</button>
+        </div>
+        <div class="profile">
+          <div class="profile-row"><span>User</span><span id="profileUser">-</span></div>
+          <div class="profile-row"><span>Duels played</span><span id="profileDuels">-</span></div>
+          <div class="profile-row"><span>Duels won</span><span id="profileWins">-</span></div>
+          <div class="profile-row"><span>Accuracy</span><span id="profileAcc">-</span></div>
+          <div class="profile-row"><span>Best win streak</span><span id="profileStreak">-</span></div>
+        </div>
+        <div class="profile" id="profileDuelsList">
+          <div class="profile-row"><span>Recent duels</span><span id="profileDuelsCount">0</span></div>
+          <div id="profileDuelsItems" class="duel-list"></div>
+        </div>
+        <div class="profile-actions">
+          <button id="btnLogout">Logout</button>
+        </div>
+      </div>
+
       <!-- Step 1: Create / Join -->
       <div class="panel" id="screenStart">
         <h3>Start</h3>
-        <div class="controls three">
-          <input id="wsUrl" value="ws://localhost:8080/ws" />
+        <div class="controls flow">
+          <input id="wsUrl" value="ws://localhost:8080/ws" class="hidden" />
           <div class="toggle" role="tablist" aria-label="Flow">
             <button id="flowCreate" class="active" type="button">Create</button>
             <button id="flowJoin" type="button">Join</button>
@@ -363,7 +478,7 @@
           </div>
           <div class="notice error hidden" id="authError"></div>
         </div>
-        <div class="controls three">
+        <div class="controls three hidden" id="jwtBlock">
           <input id="jwtToken" placeholder="JWT token (optional)" />
           <button id="btnClearToken">Clear Token</button>
           <div class="hint">Token auto-saves locally</div>
@@ -473,6 +588,11 @@
           </div>
           <div class="small">Speed is counted from last round_start.</div>
         </div>
+        <div class="panel">
+          <div class="controls one">
+            <button id="btnLeaveMatch">Leave Duel</button>
+          </div>
+        </div>
         <div class="game-over hidden" id="gameOverPanel">
           <div class="small" id="gameOverText">Game over</div>
           <div class="small" id="gameOverHP">-</div>
@@ -533,10 +653,24 @@
       const btnLogin = document.getElementById("btnLogin");
       const btnRegister = document.getElementById("btnRegister");
       const authBlock = document.getElementById("authBlock");
+      const jwtBlock = document.getElementById("jwtBlock");
       const authLoginTab = document.getElementById("authLoginTab");
       const authRegTab = document.getElementById("authRegTab");
       const regFields = document.getElementById("regFields");
       const loginFields = document.getElementById("loginFields");
+      const profileBlock = document.getElementById("profileBlock");
+      const profileFab = document.getElementById("profileFab");
+      const profileBackdrop = document.getElementById("profileBackdrop");
+      const btnProfileClose = document.getElementById("btnProfileClose");
+      const btnLeaveMatch = document.getElementById("btnLeaveMatch");
+      const btnLogout = document.getElementById("btnLogout");
+      const profileUser = document.getElementById("profileUser");
+      const profileDuels = document.getElementById("profileDuels");
+      const profileWins = document.getElementById("profileWins");
+      const profileAcc = document.getElementById("profileAcc");
+      const profileStreak = document.getElementById("profileStreak");
+      const profileDuelsCount = document.getElementById("profileDuelsCount");
+      const profileDuelsItems = document.getElementById("profileDuelsItems");
       const btnClearToken = document.getElementById("btnClearToken");
       const startError = document.getElementById("startError");
       const authError = document.getElementById("authError");
@@ -577,6 +711,7 @@
       let currentTopic = "default";
       let currentPlayers = ["Player A", "Player B"];
       let authedUsername = "";
+      let authedUserID = "";
       let authMode = "guest";
       let flowMode = "create";
       let isCreator = false;
@@ -695,6 +830,10 @@
           createUser.disabled = false;
           joinUser.disabled = false;
           authBlock.classList.add("hidden");
+          profileBlock.classList.add("hidden");
+          profileFab.classList.add("hidden");
+          profileBackdrop.classList.add("hidden");
+          jwtBlock.classList.add("hidden");
         } else {
           authText.textContent = authedUsername ? "Mode: Auth (" + authedUsername + ")" : "Mode: Auth";
           authDot.classList.add("on");
@@ -702,11 +841,29 @@
           joinUser.disabled = true;
           authBlock.classList.remove("hidden");
           if (authedUsername) {
+            profileFab.classList.remove("hidden");
+          } else {
+            profileFab.classList.add("hidden");
+          }
+          jwtBlock.classList.remove("hidden");
+          if (authedUsername) {
             createUser.value = authedUsername;
             joinUser.value = authedUsername;
           }
         }
       }
+      profileFab.onclick = () => {
+        profileBlock.classList.remove("hidden");
+        profileBackdrop.classList.remove("hidden");
+      };
+      btnProfileClose.onclick = () => {
+        profileBlock.classList.add("hidden");
+        profileBackdrop.classList.add("hidden");
+      };
+      profileBackdrop.onclick = () => {
+        profileBlock.classList.add("hidden");
+        profileBackdrop.classList.add("hidden");
+      };
       function setAuthTab(tab) {
         const isReg = tab === "reg";
         authLoginTab.classList.toggle("active", !isReg);
@@ -1050,10 +1207,58 @@
           }
           const data = await res.json();
           authedUsername = data.username || "";
+          authedUserID = data.user_id || "";
           if (authedUsername) {
             localStorage.setItem(STORAGE_TOKEN_KEY, token);
             localStorage.setItem(STORAGE_USER_KEY, authedUsername);
             setAuthMode("auth");
+            profileUser.textContent = authedUsername;
+            try {
+              const statsRes = await fetch(`${base}/me/stats`, {
+                headers: { Authorization: "Bearer " + token },
+              });
+              if (statsRes.ok) {
+                const s = await statsRes.json();
+                profileDuels.textContent = String(s.total_duels_played ?? "-");
+                profileWins.textContent = String(s.total_duels_won ?? "-");
+                profileAcc.textContent = s.overall_accuracy != null ? String(s.overall_accuracy) : "-";
+                profileStreak.textContent = String(s.best_win_streak ?? "-");
+              }
+              const duelsRes = await fetch(`${base}/me/duels`, {
+                headers: { Authorization: "Bearer " + token },
+              });
+              if (duelsRes.ok) {
+                const list = await duelsRes.json();
+                profileDuelsCount.textContent = String(list.length || 0);
+                profileDuelsItems.textContent = "";
+                list.forEach((d) => {
+                  const card = document.createElement("div");
+                  card.className = "duel-card";
+                  const status = (d.status || "unknown").toUpperCase();
+                  let badgeClass = "pending";
+                  let resultLabel = "PENDING";
+                  if (status === "FINISHED" && d.winner_user_id) {
+                    if (authedUserID && d.winner_user_id === authedUserID) {
+                      badgeClass = "win";
+                      resultLabel = "WIN";
+                    } else {
+                      badgeClass = "loss";
+                      resultLabel = "LOSS";
+                    }
+                  }
+                  const created = d.created_at ? new Date(d.created_at).toLocaleString() : "-";
+                  const line1 = document.createElement("div");
+                  line1.className = "duel-row";
+                  line1.innerHTML = `<span>${d.room_code || "-"}</span><span class="badge ${badgeClass}">${resultLabel}</span>`;
+                  const line2 = document.createElement("div");
+                  line2.className = "duel-row";
+                  line2.innerHTML = `<span>${status}</span><span>${created}</span>`;
+                  card.appendChild(line1);
+                  card.appendChild(line2);
+                  profileDuelsItems.appendChild(card);
+                });
+              }
+            } catch {}
           } else {
             setAuthMode("guest");
           }
@@ -1101,15 +1306,41 @@
         localStorage.removeItem(STORAGE_LAST_KEY);
         showScreen(screenStart);
       };
-      btnLobbyCopy.onclick = async () => {
-        if (!currentRoom) return;
-        const link = buildRoomLink(currentRoom);
+      btnLeaveMatch.onclick = () => {
         try {
-          await navigator.clipboard.writeText(link);
-          showNote(lobbyCopyNote, "Link copied");
-        } catch {
-          showNote(lobbyCopyNote, "Copy failed");
-        }
+          if (ws) {
+            ws.close();
+          }
+        } catch {}
+        currentRoom = "";
+        localStorage.removeItem(STORAGE_LAST_KEY);
+        showScreen(screenStart);
+        profileBlock.classList.add("hidden");
+        profileBackdrop.classList.add("hidden");
+      };
+      btnLogout.onclick = () => {
+        try {
+          if (ws) {
+            ws.close();
+          }
+        } catch {}
+        jwtTokenEl.value = "";
+        authedUsername = "";
+        authedUserID = "";
+        localStorage.removeItem(STORAGE_TOKEN_KEY);
+        localStorage.removeItem(STORAGE_USER_KEY);
+        localStorage.removeItem(STORAGE_LAST_KEY);
+        profileUser.textContent = "-";
+        profileDuels.textContent = "-";
+        profileWins.textContent = "-";
+        profileAcc.textContent = "-";
+        profileStreak.textContent = "-";
+        profileDuelsCount.textContent = "0";
+        profileDuelsItems.textContent = "";
+        setAuthMode("guest");
+        showScreen(screenStart);
+        profileBlock.classList.add("hidden");
+        profileBackdrop.classList.add("hidden");
       };
 
       createRoom.addEventListener("input", () => {

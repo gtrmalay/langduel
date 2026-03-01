@@ -28,4 +28,5 @@ func (s *Server) routes() {
 	// protected endpoints
 	s.mux.HandleFunc("/me", authMiddleware(s.handleMe))
 	s.mux.HandleFunc("/me/stats", authMiddleware(s.handleMyStats))
+	s.mux.HandleFunc("/me/duels", authMiddleware(s.handleMyDuels))
 }

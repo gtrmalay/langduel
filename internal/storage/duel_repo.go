@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -45,6 +46,16 @@ type Round struct {
 	Round     int
 	PhraseID  string
 	TimeLimit int
+}
+
+type DuelSummary struct {
+	DuelID       string `json:"duel_id"`
+	RoomCode     string `json:"room_code"`
+	Status       string `json:"status"`
+	StartedAt    string `json:"started_at"`
+	FinishedAt   string `json:"finished_at"`
+	WinnerUserID string `json:"winner_user_id"`
+	CreatedAt    string `json:"created_at"`
 }
 
 func (r *DuelRepo) CreateGuestUser(ctx context.Context, username string, ttlHours int) (*User, error) {
@@ -295,11 +306,65 @@ func (r *DuelRepo) GetUserStats(ctx context.Context, userID string) (*UserStats,
 		userID,
 	)
 	var s UserStats
-	if err := row.Scan(&s.UserID, &s.TotalDuelsPlayed, &s.TotalDuelsWon, &s.TotalScore, &s.OverallAccuracy, &s.BestWinStreak, &s.TotalPlayTimeMin, &s.UpdatedAt); err != nil {
+	var updatedAt time.Time
+	if err := row.Scan(&s.UserID, &s.TotalDuelsPlayed, &s.TotalDuelsWon, &s.TotalScore, &s.OverallAccuracy, &s.BestWinStreak, &s.TotalPlayTimeMin, &updatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrNotFound
+			// Return empty stats for new users.
+			return &UserStats{
+				UserID:           userID,
+				TotalDuelsPlayed: 0,
+				TotalDuelsWon:    0,
+				TotalScore:       0,
+				OverallAccuracy:  0,
+				BestWinStreak:    0,
+				TotalPlayTimeMin: 0,
+				UpdatedAt:        "",
+			}, nil
 		}
 		return nil, err
 	}
+	s.UpdatedAt = updatedAt.Format(time.RFC3339)
 	return &s, nil
+}
+
+func (r *DuelRepo) GetRecentDuels(ctx context.Context, userID string, limit int) ([]DuelSummary, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT d.duel_id, d.room_code, d.status, d.started_at, d.finished_at, d.winner_user_id, d.created_at
+         FROM duels d
+         JOIN duel_participants p ON p.duel_id = d.duel_id
+         WHERE p.user_id = $1
+         ORDER BY d.created_at DESC`,
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]DuelSummary, 0)
+	for rows.Next() {
+		var s DuelSummary
+		var startedAt, finishedAt, createdAt *time.Time
+		var winnerID *string
+		if err := rows.Scan(&s.DuelID, &s.RoomCode, &s.Status, &startedAt, &finishedAt, &winnerID, &createdAt); err != nil {
+			return nil, err
+		}
+		if winnerID != nil {
+			s.WinnerUserID = *winnerID
+		}
+		if startedAt != nil {
+			s.StartedAt = startedAt.Format(time.RFC3339)
+		}
+		if finishedAt != nil {
+			s.FinishedAt = finishedAt.Format(time.RFC3339)
+		}
+		if createdAt != nil {
+			s.CreatedAt = createdAt.Format(time.RFC3339)
+		}
+		out = append(out, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
