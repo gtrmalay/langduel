@@ -1247,12 +1247,13 @@
                     }
                   }
                   const created = d.created_at ? new Date(d.created_at).toLocaleString() : "-";
+                  const opponent = d.opponent_username ? `vs ${d.opponent_username}` : "Waiting for opponent";
                   const line1 = document.createElement("div");
                   line1.className = "duel-row";
-                  line1.innerHTML = `<span>${d.room_code || "-"}</span><span class="badge ${badgeClass}">${resultLabel}</span>`;
+                  line1.innerHTML = `<span>${opponent}</span><span class="badge ${badgeClass}">${resultLabel}</span>`;
                   const line2 = document.createElement("div");
                   line2.className = "duel-row";
-                  line2.innerHTML = `<span>${status}</span><span>${created}</span>`;
+                  line2.innerHTML = `<span>Room: ${d.room_code || "-"}</span><span>${created}</span>`;
                   card.appendChild(line1);
                   card.appendChild(line2);
                   profileDuelsItems.appendChild(card);

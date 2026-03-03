@@ -6,7 +6,6 @@ type Phrase struct {
 }
 
 var PhraseSets = map[string][]Phrase{
-
 	"default": {
 		{Prompt: "hello", Expected: "привет"},
 		{Prompt: "water", Expected: "вода"},
@@ -58,7 +57,7 @@ var PhraseSets = map[string][]Phrase{
 		{Prompt: "sheep", Expected: "овца"},
 		{Prompt: "chicken", Expected: "курица"},
 		{Prompt: "duck", Expected: "утка"},
-		{Prompt: "eagle", Expected: "орёл"},
+		{Prompt: "eagle", Expected: "орел"},
 		{Prompt: "snake", Expected: "змея"},
 		{Prompt: "fish", Expected: "рыба"},
 		{Prompt: "whale", Expected: "кит"},
@@ -135,7 +134,7 @@ var PhraseSets = map[string][]Phrase{
 		{Prompt: "burger", Expected: "бургер"},
 		{Prompt: "sausage", Expected: "колбаса"},
 		{Prompt: "pancake", Expected: "блин"},
-		{Prompt: "honey", Expected: "мёд"},
+		{Prompt: "honey", Expected: "мед"},
 		{Prompt: "pepper", Expected: "перец"},
 	},
 }

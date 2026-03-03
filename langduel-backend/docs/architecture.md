@@ -1,7 +1,7 @@
 # LangDuel Architecture
 
 ## Цель документа
-Кратко и наглядно объяснить, как устроен backend MVP LangDuel, какие есть модули, как между ними идут данные и где править логику.
+Кратко и наглядно описать архитектуру backend MVP LangDuel: какие есть модули, как между ними идут данные, где править игровую логику и протокол.
 
 ## Высокоуровневая схема
 
@@ -18,26 +18,26 @@ flowchart LR
 
 ### cmd/server
 Точка входа приложения.
-
-- `cmd/server/main.go` запускает HTTP сервер и роутер.
+- `cmd/server/main.go` запускает HTTP сервер, роутер, WebSocket и подключает БД.
 
 ### internal/server
-HTTP слой, маршруты.
-
+HTTP слой.
 - `internal/server/http.go` создает `ServeMux`.
-- `internal/server/routes.go` регистрирует `/` и `/ws`.
+- `internal/server/routes.go` регистрирует HTTP и WS роуты.
+- `internal/server/auth.go` реализует `/auth/*`, `/me`, `/me/stats`, `/me/duels`.
 
 ### internal/ws
-Транспорт WebSocket.
+WebSocket транспорт.
 
-Главные задачи:
+Задачи:
 - принять соединение;
 - читать входящие JSON сообщения;
 - вызывать `duel.Manager`;
-- отправлять события только игрокам своей комнаты.
+- рассылать события только игрокам своей комнаты;
+- управлять таймерами раундов.
 
 Файлы:
-- `internal/ws/handler.go` парсинг, маршрутизация, таймеры раундов.
+- `internal/ws/handler.go` парсинг, маршрутизация, таймеры.
 - `internal/ws/hub.go` изоляция комнат и рассылка.
 - `internal/ws/client.go` структура клиента (conn + метаданные).
 
@@ -53,23 +53,26 @@ HTTP слой, маршруты.
 - `internal/duel/player.go` структура игрока.
 
 ### internal/storage
-Заглушка под будущее подключение PostgreSQL.
+PostgreSQL доступ.
+- `internal/storage/db.go` подключение к БД.
+- `internal/storage/duel_repo.go` CRUD для дуэлей, участников, ответов, статистики.
+- `internal/storage/local_test_phrases.go` тестовые наборы фраз.
 
 ## Поток данных (Join)
 
 1. Клиент отправляет:
-   `{"type":"join","room_id":"room1","user_id":"u1"}`
+   `{"type":"join","room_id":"room1","user_id":"u1","lang":"en","topic":"default"}`
 2. `ws/handler.go` вызывает `duel.Manager.Join`.
 3. `duel.Manager` возвращает события:
    - `player_joined`
    - `room_state`
    - `round_start` (если в комнате 2 игрока)
-4. `ws` пересылает события в `hub`, а `hub` рассылает только игрокам этой комнаты.
+4. `ws` пересылает события в `hub`, `hub` рассылает только игрокам этой комнаты.
 
 ## Поток данных (Answer)
 
 1. Клиент отправляет:
-   `{"type":"answer","room_id":"room1","user_id":"u1","answer":"kot","speed":1200}`
+   `{"type":"answer","room_id":"room1","user_id":"u1","answer":"кот","speed":1200}`
 2. `duel.Manager.SubmitAnswer`:
    - нормализует ответ (lowercase + trim)
    - считает урон
@@ -97,9 +100,10 @@ HTTP слой, маршруты.
 ## Таймер раунда
 - Запускается на каждое `round_start`.
 - Если ответа нет за `roundTimeout`, сервер шлет `round_end` и начинает следующий раунд.
-- Таймер не наносит урон, он просто не дает игре “зависнуть”.
+- Таймер не наносит урон, он не дает игре “зависнуть”.
 
 ## Контракт событий (фиксируем для Svelte)
+
 Клиент -> сервер:
 - `join`: `room_id`, `user_id`, `lang`, `topic`
 - `answer`: `room_id`, `user_id`, `answer`, `speed`
@@ -120,24 +124,8 @@ HTTP слой, маршруты.
 - Изменить протокол WS: `internal/ws/handler.go`
 - Изменить UI протокола: `client.html` / `battle.html`
 
-## Ограничения MVP
-- Нет авторизации.
-- Нет БД.
-- Нет лимитов по времени/числу раундов (кроме таймера).
-- Нет сохранения истории матчей.
-
-## Источник фраз (варианты)
-Сейчас используется статический список фраз в `internal/duel/room.go`.
-
-Опционально в будущем:
-1. Генератор (ИИ) по теме/языку.
-2. База заранее подготовленных наборов фраз.
-
-Рекомендуемый путь: оставить ручные наборы в MVP, а ИИ добавить как заменяемый источник позже.
-
-## MVP Limitations (current)
-- No achievements/skins/ratings yet.
-- No AI-generated phrases yet.
-- No matchmaking/queue.
-- Frontend is a test UI; Svelte will replace it.
-
+## Ограничения текущего MVP
+- Нет достижений/скинов/рейтингов.
+- Нет AI-генерации фраз.
+- Нет матчмейкинга/очереди.
+- Frontend — тестовый UI; Svelte будет полноценной заменой.

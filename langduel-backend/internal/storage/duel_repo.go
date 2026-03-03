@@ -56,6 +56,8 @@ type DuelSummary struct {
 	FinishedAt   string `json:"finished_at"`
 	WinnerUserID string `json:"winner_user_id"`
 	CreatedAt    string `json:"created_at"`
+	OpponentUserID   string `json:"opponent_user_id"`
+	OpponentUsername string `json:"opponent_username"`
 }
 
 func (r *DuelRepo) CreateGuestUser(ctx context.Context, username string, ttlHours int) (*User, error) {
@@ -329,9 +331,12 @@ func (r *DuelRepo) GetUserStats(ctx context.Context, userID string) (*UserStats,
 
 func (r *DuelRepo) GetRecentDuels(ctx context.Context, userID string, limit int) ([]DuelSummary, error) {
 	rows, err := r.db.Pool.Query(ctx,
-		`SELECT d.duel_id, d.room_code, d.status, d.started_at, d.finished_at, d.winner_user_id, d.created_at
+		`SELECT d.duel_id, d.room_code, d.status, d.started_at, d.finished_at, d.winner_user_id, d.created_at,
+		        u2.user_id, u2.username
          FROM duels d
          JOIN duel_participants p ON p.duel_id = d.duel_id
+         LEFT JOIN duel_participants p2 ON p2.duel_id = d.duel_id AND p2.user_id <> p.user_id
+         LEFT JOIN users u2 ON u2.user_id = p2.user_id
          WHERE p.user_id = $1
          ORDER BY d.created_at DESC`,
 		userID,
@@ -346,11 +351,19 @@ func (r *DuelRepo) GetRecentDuels(ctx context.Context, userID string, limit int)
 		var s DuelSummary
 		var startedAt, finishedAt, createdAt *time.Time
 		var winnerID *string
-		if err := rows.Scan(&s.DuelID, &s.RoomCode, &s.Status, &startedAt, &finishedAt, &winnerID, &createdAt); err != nil {
+		var opponentID *string
+		var opponentName *string
+		if err := rows.Scan(&s.DuelID, &s.RoomCode, &s.Status, &startedAt, &finishedAt, &winnerID, &createdAt, &opponentID, &opponentName); err != nil {
 			return nil, err
 		}
 		if winnerID != nil {
 			s.WinnerUserID = *winnerID
+		}
+		if opponentID != nil {
+			s.OpponentUserID = *opponentID
+		}
+		if opponentName != nil {
+			s.OpponentUsername = *opponentName
 		}
 		if startedAt != nil {
 			s.StartedAt = startedAt.Format(time.RFC3339)

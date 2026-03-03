@@ -35,7 +35,7 @@ Response:
 `GET /me/duels` (Authorization: Bearer `<token>`)
 ```json
 [
-  {"duel_id":"...","room_code":"room-abc123","status":"finished","started_at":"...","finished_at":"...","winner_user_id":"...","created_at":"..."}
+  {"duel_id":"...","room_code":"room-abc123","status":"finished","started_at":"...","finished_at":"...","winner_user_id":"...","created_at":"...","opponent_user_id":"...","opponent_username":"..."}
 ]
 ```
 
