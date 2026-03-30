@@ -186,9 +186,23 @@ func authMiddleware(next func(http.ResponseWriter, *http.Request, authedUser)) h
 }
 
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request, u authedUser) {
+	if repo == nil {
+		http.Error(w, "db not configured", http.StatusServiceUnavailable)
+		return
+	}
+	user, err := repo.GetUserByID(r.Context(), u.ID)
+	if err != nil {
+		writeJSON(w, map[string]any{
+			"user_id":  u.ID,
+			"username": u.Username,
+			"avatar":   "default",
+		})
+		return
+	}
 	writeJSON(w, map[string]any{
-		"user_id":  u.ID,
-		"username": u.Username,
+		"user_id":  user.ID,
+		"username": user.Username,
+		"avatar":   user.Avatar,
 	})
 }
 
@@ -234,4 +248,148 @@ func (s *Server) handleMyDuels(w http.ResponseWriter, r *http.Request, u authedU
 		return
 	}
 	writeJSON(w, items)
+}
+
+type updateUsernameReq struct {
+	Username string `json:"username"`
+}
+
+func (s *Server) handleUpdateUsername(w http.ResponseWriter, r *http.Request, u authedUser) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if repo == nil {
+		http.Error(w, "db not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req updateUsernameReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if req.Username == "" {
+		http.Error(w, "username required", http.StatusBadRequest)
+		return
+	}
+	if len(req.Username) < 3 || len(req.Username) > 30 {
+		http.Error(w, "username must be 3-30 characters", http.StatusBadRequest)
+		return
+	}
+
+	err := repo.UpdateUsername(r.Context(), u.ID, req.Username)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	writeJSON(w, map[string]string{"username": req.Username})
+}
+
+type updateAvatarReq struct {
+	Avatar string `json:"avatar"`
+}
+
+func (s *Server) handleUpdateAvatar(w http.ResponseWriter, r *http.Request, u authedUser) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if repo == nil {
+		http.Error(w, "db not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req updateAvatarReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if req.Avatar == "" {
+		req.Avatar = "default"
+	}
+
+	err := repo.UpdateAvatar(r.Context(), u.ID, req.Avatar)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, map[string]string{"avatar": req.Avatar})
+}
+
+func (s *Server) handleMyRating(w http.ResponseWriter, r *http.Request, u authedUser) {
+	if repo == nil {
+		http.Error(w, "db not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	rating, err := repo.GetUserRating(r.Context(), u.ID)
+	if err != nil {
+		log.Printf("GET /me/rating error: %v", err)
+		http.Error(w, "rating not found", http.StatusNotFound)
+		return
+	}
+
+	writeJSON(w, rating)
+}
+
+func (s *Server) handleLeaderboard(w http.ResponseWriter, r *http.Request) {
+	if repo == nil {
+		http.Error(w, "db not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	entries, err := repo.GetLeaderboard(r.Context(), 100)
+	if err != nil {
+		log.Printf("GET /leaderboard error: %v", err)
+		http.Error(w, "leaderboard error", http.StatusInternalServerError)
+		return
+	}
+
+	if entries == nil {
+		entries = []storage.LeaderboardEntry{}
+	}
+
+	writeJSON(w, entries)
+}
+
+func (s *Server) handleMyAchievements(w http.ResponseWriter, r *http.Request, u authedUser) {
+	if repo == nil {
+		http.Error(w, "db not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	achievements, err := repo.GetAllAchievements(r.Context(), u.ID)
+	if err != nil {
+		log.Printf("GET /me/achievements error: %v", err)
+		http.Error(w, "achievements error", http.StatusInternalServerError)
+		return
+	}
+
+	if achievements == nil {
+		achievements = []storage.Achievement{}
+	}
+
+	writeJSON(w, achievements)
+}
+
+// handleClaimCoins retroactively claims coins for already unlocked achievements
+func (s *Server) handleClaimCoins(w http.ResponseWriter, r *http.Request, u authedUser) {
+	log.Printf("POST /me/claim-coins called for user: %s", u.ID)
+	if repo == nil {
+		http.Error(w, "db not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	coins, err := repo.AwardCoinsForUnlockedAchievements(r.Context(), u.ID)
+	if err != nil {
+		log.Printf("POST /me/claim-coins error: %v", err)
+		http.Error(w, "claim coins error", http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("POST /me/claim-coins result: %d coins for user %s", coins, u.ID)
+	writeJSON(w, map[string]int{"coins_awarded": coins})
 }

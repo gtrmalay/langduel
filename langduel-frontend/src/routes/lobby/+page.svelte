@@ -2,8 +2,33 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { duel } from '$lib/stores/duel.js';
+  import { _ } from 'svelte-i18n';
 
   let showLeaveConfirm = false;
+
+  $: topicLabels = {
+    'default': $_('topics.default'),
+    'animals': $_('topics.animals'),
+    'travel': $_('topics.travel'),
+    'food': $_('topics.food'),
+    'movies': $_('topics.movies'),
+    'sports': $_('topics.sports')
+  };
+
+  $: difficultyLabels = {
+    'beginner': $_('difficulty.beginner'),
+    'intermediate': $_('difficulty.intermediate'),
+    'advanced': $_('difficulty.advanced')
+  };
+
+  $: currentUser = $duel.currentUser || '';
+  $: playerA = $duel.playerA || '';
+  $: playerB = $duel.playerB || '';
+  $: isPlayerA = currentUser && playerA === currentUser;
+  $: myAvatarEmoji = duel.getAvatarEmoji($duel.userAvatar || 'default');
+  $: opponentAvatarEmoji = duel.getAvatarEmoji($duel.opponentAvatar || 'default');
+  $: userAvatarEmoji = isPlayerA ? myAvatarEmoji : opponentAvatarEmoji;
+  $: oppAvatarEmoji = isPlayerA ? opponentAvatarEmoji : myAvatarEmoji;
 
   onMount(() => {
     duel.init();
@@ -26,16 +51,33 @@
 
 <div class="wrap">
   <div class="hero">
-    <h1 class="title">LOBBY</h1>
+    <h1 class="title">{$_('play.create').toUpperCase()}</h1>
   </div>
 
-  <div class="room-code">
-    <span class="label">ROOM</span>
-    <span class="code">{$duel.currentRoom || '-'}</span>
-    {#if $duel.currentRoom}
-      <button class="copy-btn" on:click={() => duel.copyLink($duel.currentRoom, 'lobbyCopyNote')}>
-        COPY
-      </button>
+  <div class="room-info">
+    <div class="room-code">
+      <span class="label">{$_('play.room').toUpperCase()}</span>
+      <span class="code">{$duel.currentRoom || '-'}</span>
+      {#if $duel.currentRoom}
+        <button class="copy-btn" on:click={() => duel.copyLink($duel.currentRoom, 'lobbyCopyNote')}>
+          COPY
+        </button>
+      {/if}
+    </div>
+
+    {#if $duel.currentTopic || $duel.createDifficulty}
+      <div class="game-info">
+        {#if $duel.currentTopic || $duel.createTopic}
+          <span class="info-badge">
+            📚 {topicLabels[$duel.currentTopic] || topicLabels[$duel.createTopic] || $_('topics.default')}
+          </span>
+        {/if}
+        {#if $duel.createDifficulty}
+          <span class="info-badge">
+            🎯 {difficultyLabels[$duel.createDifficulty] || $_('difficulty.intermediate')}
+          </span>
+        {/if}
+      </div>
     {/if}
   </div>
 
@@ -45,31 +87,31 @@
 
   <div class="players">
     <div class="player-card you">
-      <div class="player-icon">👤</div>
-      <div class="player-name">{$duel.currentUser || 'You'}</div>
-      <div class="player-status ready">READY</div>
+      <div class="player-icon">{myAvatarEmoji}</div>
+      <div class="player-name">{$duel.currentUser || $_('profile.guest')}</div>
+      <div class="player-status ready">{$_('lobby.ready').toUpperCase()}</div>
     </div>
 
     <div class="vs">VS</div>
 
     <div class="player-card opponent">
-      <div class="player-icon">?</div>
+      <div class="player-icon">{opponentAvatarEmoji}</div>
       <div class="player-name">
-        {$duel.playerB && $duel.playerB !== 'Player B' ? $duel.playerB : 'Waiting...'}
+        {$duel.playerB && $duel.playerB !== 'Player B' ? $duel.playerB : $_('lobby.waiting')}
       </div>
       <div class="player-status">
-        {$duel.playerB && $duel.playerB !== 'Player B' ? 'READY' : 'WAITING'}
+        {$duel.playerB && $duel.playerB !== 'Player B' ? $_('lobby.ready').toUpperCase() : $_('lobby.waitingOpponent').toUpperCase()}
       </div>
     </div>
   </div>
 
   <div class="status-text">
-    {$duel.lobbyText}
+    {$duel.lobbyText || $_('lobby.waiting')}
   </div>
 
   <div class="leave-section">
     <button class="leave-btn" class:confirm={showLeaveConfirm} on:click={handleLeave}>
-      {showLeaveConfirm ? 'CONFIRM LEAVE' : 'LEAVE LOBBY'}
+      {showLeaveConfirm ? $_('lobby.confirmLeave').toUpperCase() : $_('lobby.leave').toUpperCase()}
     </button>
   </div>
 </div>
@@ -97,6 +139,13 @@
     letter-spacing: 3px;
   }
 
+  .room-info {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+  }
+
   .room-code {
     display: flex;
     align-items: center;
@@ -105,6 +154,7 @@
     background: var(--card);
     border-radius: 12px;
     border: 1px solid var(--outline);
+    justify-content: center;
   }
 
   .label {
@@ -136,6 +186,21 @@
 
   .copy-btn:hover {
     border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .game-info {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .info-badge {
+    padding: 8px 14px;
+    border-radius: 8px;
+    background: rgba(37, 244, 183, 0.1);
+    border: 1px solid rgba(37, 244, 183, 0.3);
+    font-size: 12px;
     color: var(--accent);
   }
 

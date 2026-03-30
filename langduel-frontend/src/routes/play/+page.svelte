@@ -2,8 +2,24 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { duel } from '$lib/stores/duel.js';
+  import { _ } from 'svelte-i18n';
 
   let activeTab = 'create';
+
+  $: topics = [
+    { value: 'default', label: $_('topics.default') },
+    { value: 'animals', label: $_('topics.animals') },
+    { value: 'travel', label: $_('topics.travel') },
+    { value: 'food', label: $_('topics.food') },
+    { value: 'movies', label: $_('topics.movies') },
+    { value: 'sports', label: $_('topics.sports') }
+  ];
+
+  $: difficulties = [
+    { value: 'beginner', label: $_('difficulty.beginner') },
+    { value: 'intermediate', label: $_('difficulty.intermediate') },
+    { value: 'advanced', label: $_('difficulty.advanced') }
+  ];
 
   onMount(() => {
     duel.init();
@@ -28,7 +44,7 @@
 <div class="wrap">
   <div class="hero">
     <h1 class="title">LANGDUEL</h1>
-    <p class="subtitle">TRANSLATE BATTLE</p>
+    <p class="subtitle">{$_('home.subtitle')}</p>
   </div>
 
   <div class="tabs">
@@ -37,21 +53,49 @@
       class:active={activeTab === 'create'} 
       on:click={() => handleTab('create')}
     >
-      CREATE
+      {$_('play.create').toUpperCase()}
     </button>
     <button 
       class="tab" 
       class:active={activeTab === 'join'} 
       on:click={() => handleTab('join')}
     >
-      JOIN
+      {$_('play.join').toUpperCase()}
     </button>
   </div>
 
   <div class="card">
     {#if activeTab === 'create'}
+      <div class="form-row">
+        <div class="form-group">
+          <label for="topic">{$_('play.topic')}</label>
+          <select 
+            id="topic"
+            value={$duel.createTopic}
+            on:change={(e) => duel.setField('createTopic', e.target.value)}
+          >
+            {#each topics as topic}
+              <option value={topic.value}>{topic.label}</option>
+            {/each}
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label for="difficulty">{$_('play.difficulty')}</label>
+          <select 
+            id="difficulty"
+            value={$duel.createDifficulty}
+            on:change={(e) => duel.setField('createDifficulty', e.target.value)}
+          >
+            {#each difficulties as diff}
+              <option value={diff.value}>{diff.label}</option>
+            {/each}
+          </select>
+        </div>
+      </div>
+
       <div class="form-group">
-        <label for="room-id">Room ID</label>
+        <label for="room-id">{$_('play.room')}</label>
         <div class="room-input">
           <input 
             id="room-id"
@@ -65,7 +109,7 @@
       </div>
       
       <div class="form-group">
-        <label for="nickname-create">Your Nickname</label>
+        <label for="nickname-create">{$_('play.username')}</label>
         <input 
           id="nickname-create"
           type="text" 
@@ -76,9 +120,9 @@
       </div>
 
       <div class="invite-section">
-        <span class="invite-label">Invite Link:</span>
+        <span class="invite-label">{$_('play.join').toUpperCase()}:</span>
         <span class="invite-link">
-          {$duel.createRoom ? duel.buildRoomLink($duel.createRoom) : 'Generate room first'}
+          {$duel.createRoom ? duel.buildRoomLink($duel.createRoom) : $_('play.create').toUpperCase()}
         </span>
         {#if $duel.createRoom}
           <button class="copy-btn" on:click={() => duel.copyLink($duel.createRoom, 'createCopyNote')}>
@@ -92,23 +136,23 @@
       {/if}
 
       <button class="action-btn" on:click={() => duel.createAndConnect()}>
-        CREATE ROOM
+        {$_('play.createRoom').toUpperCase()}
       </button>
 
     {:else}
       <div class="form-group">
-        <label for="room-code">Room Code</label>
+        <label for="room-code">{$_('play.room')}</label>
         <input 
           id="room-code"
           type="text" 
-          placeholder="Enter room code"
+          placeholder={$_('play.enterRoom')}
           value={$duel.joinRoom}
           on:input={(e) => duel.setField('joinRoom', e.target.value)}
         />
       </div>
 
       <div class="form-group">
-        <label for="nickname-join">Your Nickname</label>
+        <label for="nickname-join">{$_('play.username')}</label>
         <input 
           id="nickname-join"
           type="text" 
@@ -119,7 +163,7 @@
       </div>
 
       <button class="action-btn" on:click={() => duel.joinAndConnect()}>
-        JOIN ROOM
+        {$_('play.joinRoom').toUpperCase()}
       </button>
     {/if}
 
@@ -129,7 +173,7 @@
   </div>
 
   <button class="back-btn" on:click={() => goto('/')}>
-    ← BACK
+    ← {$_('gameOver.home').toUpperCase()}
   </button>
 </div>
 
@@ -206,6 +250,12 @@
     border: 1px solid rgba(37, 244, 183, 0.15);
   }
 
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
   .form-group {
     display: flex;
     flex-direction: column;
@@ -219,7 +269,7 @@
     letter-spacing: 1px;
   }
 
-  input {
+  input, select {
     width: 100%;
     padding: 14px 16px;
     border-radius: 10px;
@@ -230,7 +280,11 @@
     box-sizing: border-box;
   }
 
-  input:focus {
+  select {
+    cursor: pointer;
+  }
+
+  input:focus, select:focus {
     outline: none;
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(37, 244, 183, 0.15);

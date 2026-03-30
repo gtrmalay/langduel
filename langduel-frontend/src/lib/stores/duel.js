@@ -14,10 +14,13 @@ const initialState = {
   joinRoom: '',
   createLang: 'en',
   createTopic: 'default',
+  createDifficulty: 'intermediate',
   createRounds: 5,
   jwtToken: '',
   authedUsername: '',
   authedUserID: '',
+  userAvatar: 'default',
+  opponentAvatar: 'default',
   startError: '',
   authError: '',
   isCreator: false,
@@ -25,6 +28,7 @@ const initialState = {
   currentUser: '',
   currentLang: 'en',
   currentTopic: 'default',
+  currentDifficulty: 'intermediate',
   lobbyText: 'Waiting for opponent...',
   lobbyCopyNote: '',
   createCopyNote: '',
@@ -32,6 +36,7 @@ const initialState = {
   playerA: 'Player A',
   playerB: 'Player B',
   hp: {},
+  elo: {},
   promptText: 'Waiting for round...',
   timerText: '-',
   roundInfo: '-',
@@ -43,6 +48,7 @@ const initialState = {
   gameOverOpen: false,
   gameOverText: 'Game over',
   gameOverHP: '-',
+  eloChange: {},
   profileUser: '-',
   profileDuels: '-',
   profileWins: '-',
@@ -50,6 +56,14 @@ const initialState = {
   profileStreak: '-',
   profileDuelsCount: '0',
   profileDuelsList: [],
+  profileElo: 1000,
+  profileRank: 'newbie',
+  profileRankName: '🥉 Newbie',
+  profileCoins: 0,
+  profileXP: 0,
+  profileLevel: 1,
+  leaderboard: [],
+  achievements: [],
   hitA: false,
   hitB: false
 };
@@ -59,6 +73,7 @@ const STORAGE_USER_KEY = 'langduel_user';
 const STORAGE_GUEST_KEY = 'langduel_guest';
 const STORAGE_LAST_KEY = 'langduel_last_session';
 const STORAGE_AUTH_CHOICE_KEY = 'langduel_auth_choice';
+const STORAGE_AVATAR_KEY = 'langduel_avatar';
 const roundDurationMs = 10000;
 
 const state = writable({ ...initialState });
@@ -134,6 +149,28 @@ function avgSpeed(s) {
   return Math.round(s.totalSpeed / s.speedCount);
 }
 
+const avatarEmojis = {
+  'default': '?',
+  'knight': '🛡️',
+  'wizard': '🧙',
+  'archer': '🏹',
+  'dragon': '🐉',
+  'skull': '💀',
+  'fire': '🔥',
+  'ice': '❄️',
+  'lightning': '⚡',
+  'sword': '⚔️',
+  'shield': '🛡️',
+  'potion': '🧪',
+  'crown': '👑',
+  'star': '⭐',
+  'moon': '🌙',
+};
+
+function getAvatarEmoji(avatarId) {
+  return avatarEmojis[avatarId] || avatarEmojis['default'];
+}
+
 function applyHP(nextHP) {
   setState({ hp: nextHP || {} });
 }
@@ -190,7 +227,9 @@ function saveLastSession() {
     user: s.currentUser,
     creator: s.isCreator,
     flow: s.flowMode,
-    auth: s.authMode
+    auth: s.authMode,
+    topic: s.currentTopic || s.createTopic,
+    difficulty: s.currentDifficulty || s.createDifficulty
   };
   localStorage.setItem(STORAGE_LAST_KEY, JSON.stringify(payload));
 }
@@ -227,7 +266,9 @@ function connectAndJoin() {
       room_id: s.currentRoom,
       user_id: s.currentUser,
       lang: s.currentLang,
-      topic: s.currentTopic
+      topic: s.currentTopic,
+      difficulty: s.currentDifficulty || s.createDifficulty,
+      avatar: s.authMode === 'auth' ? (s.userAvatar || 'default') : 'guest'
     };
     ws.send(JSON.stringify(msg));
     resetStats();
@@ -274,6 +315,25 @@ function connectAndJoin() {
     if (data.type === 'player_joined') {
       ensurePlayers(data.players);
       applyHP(data.hp);
+      const opponentName = data.players.find(p => p !== get(state).currentUser);
+      if (opponentName && data.avatars) {
+        const opponentAvatar = data.avatars[opponentName];
+        if (opponentAvatar && opponentAvatar !== 'guest') {
+          setState({ opponentAvatar: opponentAvatar });
+        } else {
+          setState({ opponentAvatar: 'default' });
+        }
+      } else if (opponentName) {
+        const isGuest = opponentName.toLowerCase().includes('guest');
+        if (isGuest) {
+          setState({ opponentAvatar: 'default' });
+        } else {
+          const avatars = ['knight', 'wizard', 'archer', 'dragon', 'skull', 'fire', 'ice', 'lightning', 'sword', 'potion', 'crown', 'star', 'moon'];
+          const hash = opponentName.split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0);
+          const avatarIndex = Math.abs(hash) % avatars.length;
+          setState({ opponentAvatar: avatars[avatarIndex] });
+        }
+      }
       setState({ lobbyText: 'Opponent joined. Starting...' });
     }
 
@@ -316,14 +376,59 @@ function connectAndJoin() {
     if (data.type === 'game_over') {
       setState({ promptText: 'Winner: ' + data.winner_id, roundInfo: 'Game over' });
       applyHP(data.hp);
+      if (data.elo) {
+        setState({ elo: data.elo });
+      }
+      if (data.elo_change) {
+        setState({ eloChange: data.elo_change });
+      }
       stopCountdown();
       const last = data.hp || {};
       const ids = Object.keys(last);
       const a = ids[0] ? (ids[0] + ': ' + last[ids[0]]) : '-';
       const b = ids[1] ? (ids[1] + ': ' + last[ids[1]]) : '-';
+      
+      const winner = data.winner_id;
+      const isWinner = winner && winner === get(state).currentUser;
+      const winMessages = [
+        'VICTORY! 🏆',
+        'YOU WIN! ⚔️',
+        'LEGENDARY! 🌟',
+        'UNSTOPPABLE! 🔥',
+        'CHAMPION! 👑',
+        'MASTERFUL! 🎯'
+      ];
+      const loseMessages = [
+        'DEFEAT... 💔',
+        'GAME OVER 💀',
+        'SO CLOSE... 😢',
+        'NEXT TIME! 🎮',
+        'ALMOST! 💪'
+      ];
+      const winEmojis = ['🏆', '⚔️', '🌟', '🔥', '👑', '🎯'];
+      const loseEmojis = ['💔', '💀', '😢', '🎮', '💪'];
+      
+      let gameText;
+      if (isWinner) {
+        const idx = Math.floor(Math.random() * winMessages.length);
+        gameText = winMessages[idx];
+      } else {
+        const idx = Math.floor(Math.random() * loseMessages.length);
+        gameText = loseMessages[idx];
+      }
+      
+      let eloInfo = '';
+      if (data.elo_change) {
+        const userID = get(state).authedUserID;
+        const change = data.elo_change[userID];
+        if (change !== undefined) {
+          eloInfo = change > 0 ? ` +${change} ELO` : ` ${change} ELO`;
+        }
+      }
+      
       setState({
         gameOverOpen: true,
-        gameOverText: 'Winner: ' + (data.winner_id || '-'),
+        gameOverText: gameText + eloInfo,
         gameOverHP: 'Final HP - ' + a + ' | ' + b
       });
     }
@@ -351,13 +456,13 @@ async function syncAuthFromToken() {
       return;
     }
     const data = await res.json();
-    setState({ authedUsername: data.username || '', authedUserID: data.user_id || '' });
-    if (data.username) {
-      localStorage.setItem(STORAGE_TOKEN_KEY, token);
-      localStorage.setItem(STORAGE_USER_KEY, data.username);
-      setState({ profileUser: data.username });
-      try {
-        const statsRes = await fetch(`${base}/me/stats`, {
+    const avatar = data.avatar || 'default';
+    setState({ authedUsername: data.username || '', authedUserID: data.user_id || '', userAvatar: avatar, profileUser: data.username });
+    localStorage.setItem(STORAGE_TOKEN_KEY, token);
+    localStorage.setItem(STORAGE_USER_KEY, data.username);
+    localStorage.setItem(STORAGE_AVATAR_KEY, avatar);
+    try {
+      const statsRes = await fetch(`${base}/me/stats`, {
           headers: { Authorization: 'Bearer ' + token }
         });
         if (statsRes.ok) {
@@ -400,11 +505,12 @@ async function syncAuthFromToken() {
           });
           setState({ profileDuelsCount: String(list.length || 0), profileDuelsList: mapped });
         }
-      } catch {
+        await fetchUserRating();
+        await fetchAchievements();
+      } catch (e) {
         // ignore profile fetch errors
       }
-    }
-  } catch {
+  } catch (e) {
     setState({ authedUsername: '', authedUserID: '' });
   }
 }
@@ -483,6 +589,7 @@ function createAndConnect() {
     currentUser: user,
     currentLang: s.createLang,
     currentTopic: s.createTopic,
+    currentDifficulty: s.createDifficulty,
     createUser: user,
     joinUser: user
   });
@@ -547,6 +654,7 @@ function leaveMatch() {
     if (ws) ws.close();
   } catch {}
   clearLastSession();
+  setState({ opponentAvatar: 'default' });
   goto('/');
 }
 
@@ -556,17 +664,21 @@ function logout() {
   } catch {}
   localStorage.removeItem(STORAGE_TOKEN_KEY);
   localStorage.removeItem(STORAGE_USER_KEY);
+  localStorage.removeItem(STORAGE_AVATAR_KEY);
   setState({
     jwtToken: '',
     authedUsername: '',
     authedUserID: '',
+    authMode: 'guest',
     profileUser: '-',
     profileDuels: '-',
     profileWins: '-',
     profileAcc: '-',
     profileStreak: '-',
     profileDuelsCount: '0',
-    profileDuelsList: []
+    profileDuelsList: [],
+    userAvatar: 'default',
+    opponentAvatar: 'default'
   });
 }
 
@@ -580,8 +692,10 @@ function init() {
     const storedUser = localStorage.getItem(STORAGE_USER_KEY) || '';
     const storedGuest = localStorage.getItem(STORAGE_GUEST_KEY) || '';
     const storedChoice = localStorage.getItem(STORAGE_AUTH_CHOICE_KEY) || '';
+    const storedAvatar = localStorage.getItem(STORAGE_AVATAR_KEY) || 'default';
     if (storedToken) setState({ jwtToken: storedToken });
     if (storedUser) setState({ authedUsername: storedUser, profileUser: storedUser });
+    if (storedAvatar) setState({ userAvatar: storedAvatar });
     if (storedGuest) setState({ createUser: storedGuest, joinUser: storedGuest });
     if (storedChoice) {
       setState({ authMode: storedChoice, authChoiceMade: true });
@@ -601,7 +715,9 @@ function init() {
           currentUser: s.user || '',
           isCreator: !!s.creator,
           flowMode: s.flow || 'create',
-          authMode: s.auth || 'guest'
+          authMode: s.auth || 'guest',
+          createTopic: s.topic || 'default',
+          createDifficulty: s.difficulty || 'intermediate'
         });
       } catch {
         // ignore
@@ -609,6 +725,148 @@ function init() {
     }
     syncAuthFromToken();
   }
+}
+
+async function updateUsername(newUsername) {
+  const s = get(state);
+  if (!s.jwtToken) return { error: 'Not authenticated' };
+  try {
+    const base = httpBaseFromWs(s.wsUrl);
+    const res = await fetch(`${base}/me/username`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + s.jwtToken
+      },
+      body: JSON.stringify({ username: newUsername })
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      return { error: text };
+    }
+    const data = await res.json();
+    setState({ authedUsername: data.username, profileUser: data.username });
+    localStorage.setItem(STORAGE_USER_KEY, data.username);
+    return { success: true };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+async function updateAvatar(newAvatar) {
+  const s = get(state);
+  if (!s.jwtToken) return { error: 'Not authenticated' };
+  try {
+    const base = httpBaseFromWs(s.wsUrl);
+    const res = await fetch(`${base}/me/avatar`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + s.jwtToken
+      },
+      body: JSON.stringify({ avatar: newAvatar })
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      return { error: text };
+    }
+    const data = await res.json();
+    setState({ userAvatar: data.avatar });
+    localStorage.setItem(STORAGE_AVATAR_KEY, data.avatar);
+    return { success: true };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+async function fetchUserRating() {
+  const s = get(state);
+  if (!s.jwtToken) return;
+  try {
+    const base = httpBaseFromWs(s.wsUrl);
+    const res = await fetch(`${base}/me/rating`, {
+      headers: { Authorization: 'Bearer ' + s.jwtToken }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const rankNames = {
+        'newbie': '🥉 Newbie',
+        'apprentice': '🥈 Apprentice',
+        'expert': '🥇 Expert',
+        'master': '💎 Master',
+        'struggler': '😔 Struggler'
+      };
+      setState({
+        profileElo: data.elo || 1000,
+        profileRank: data.rank || 'newbie',
+        profileRankName: rankNames[data.rank] || rankNames['newbie'],
+        profileCoins: data.coins || 0,
+        profileXP: data.xp || 0,
+        profileLevel: data.level || 1
+      });
+    }
+  } catch (e) {
+    // ignore
+  }
+}
+
+async function fetchLeaderboard() {
+  const s = get(state);
+  try {
+    const base = httpBaseFromWs(s.wsUrl);
+    const res = await fetch(`${base}/leaderboard`);
+    if (res.ok) {
+      const data = await res.json();
+      setState({ leaderboard: data || [] });
+    }
+  } catch (e) {
+    setState({ leaderboard: [] });
+  }
+}
+
+async function fetchAchievements() {
+  const s = get(state);
+  if (!s.jwtToken) return;
+  try {
+    const base = httpBaseFromWs(s.wsUrl);
+    const res = await fetch(`${base}/me/achievements`, {
+      headers: { Authorization: 'Bearer ' + s.jwtToken }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setState({ achievements: data || [] });
+    }
+  } catch (e) {
+    // ignore
+  }
+}
+
+async function claimCoins() {
+  const s = get(state);
+  if (!s.jwtToken) return { coins_awarded: 0 };
+  try {
+    const base = httpBaseFromWs(s.wsUrl);
+    console.log('[claimCoins] Calling /me/claim-coins');
+    const res = await fetch(`${base}/me/claim-coins`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + s.jwtToken }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      console.log('[claimCoins] Response:', data);
+      // Update profile coins
+      const newCoins = (s.profileCoins || 0) + (data.coins_awarded || 0);
+      setState({ profileCoins: newCoins });
+      console.log('[claimCoins] Updated coins to:', newCoins);
+      return data;
+    } else {
+      console.log('[claimCoins] Failed:', res.status);
+    }
+  } catch (e) {
+    console.log('[claimCoins] Error:', e);
+    // ignore
+  }
+  return { coins_awarded: 0 };
 }
 
 export const duel = {
@@ -622,13 +880,19 @@ export const duel = {
   selectGuest: () => {
     localStorage.removeItem(STORAGE_TOKEN_KEY);
     localStorage.removeItem(STORAGE_USER_KEY);
+    localStorage.removeItem(STORAGE_AVATAR_KEY);
     setState({
       jwtToken: '',
       authedUsername: '',
       authedUserID: '',
       authMode: 'guest',
       authChoiceMade: true,
-      profileUser: '-'
+      profileUser: '-',
+      userAvatar: 'default',
+      opponentAvatar: 'default',
+      profileElo: 1000,
+      profileRank: 'newbie',
+      profileRankName: '🥉 Newbie'
     });
     localStorage.setItem(STORAGE_AUTH_CHOICE_KEY, 'guest');
   },
@@ -647,5 +911,12 @@ export const duel = {
   logout,
   login,
   register,
+  updateUsername,
+  updateAvatar,
+  fetchUserRating,
+  fetchLeaderboard,
+  fetchAchievements,
+  claimCoins,
+  getAvatarEmoji,
   avgSpeed: () => avgSpeed(get(state))
 };

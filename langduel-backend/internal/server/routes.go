@@ -2,10 +2,10 @@ package server
 
 import (
 	"fmt"
+	"langduel/internal/ws"
 	"net/http"
 	"os"
 	"path/filepath"
-	"langduel/internal/ws"
 )
 
 func (s *Server) routes() {
@@ -29,4 +29,14 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/me", authMiddleware(s.handleMe))
 	s.mux.HandleFunc("/me/stats", authMiddleware(s.handleMyStats))
 	s.mux.HandleFunc("/me/duels", authMiddleware(s.handleMyDuels))
+	s.mux.HandleFunc("/me/username", authMiddleware(s.handleUpdateUsername))
+	s.mux.HandleFunc("/me/avatar", authMiddleware(s.handleUpdateAvatar))
+	s.mux.HandleFunc("/me/rating", authMiddleware(s.handleMyRating))
+
+	// public endpoints
+	s.mux.HandleFunc("/leaderboard", s.handleLeaderboard)
+
+	// achievement endpoints
+	s.mux.HandleFunc("/me/achievements", authMiddleware(s.handleMyAchievements))
+	s.mux.HandleFunc("/me/claim-coins", authMiddleware(s.handleClaimCoins))
 }

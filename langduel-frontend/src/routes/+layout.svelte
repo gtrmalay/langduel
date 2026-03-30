@@ -3,6 +3,7 @@
 	import { page } from '$app/stores';
 	import Header from '$lib/components/Header.svelte';
 	import { duel } from '$lib/stores/duel.js';
+	import '$lib/i18n';
 
 	let { children } = $props();
 </script>
@@ -11,8 +12,11 @@
 	<link rel="icon" href={favicon} />
 </svelte:head>
 
+<div class="page-bg"></div>
 <Header show={$page.url.pathname !== '/battle'} />
-{@render children()}
+<div class="main-wrap">
+	{@render children()}
+</div>
 
 <style>
 	@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Grotesk:wght@400;600;700&display=swap');
@@ -30,42 +34,50 @@
 			--outline: #2b344a;
 			--glow: rgba(37,244,183,0.35);
 		}
+		* {
+			box-sizing: border-box;
+		}
+		html, body {
+			min-height: 100%;
+		}
 		body {
 			margin: 0;
 			font-family: "Space Grotesk", system-ui, sans-serif;
-			background:
-				radial-gradient(1200px 800px at 20% 15%, rgba(37,244,183,0.12), transparent 60%),
-				radial-gradient(1200px 800px at 85% 10%, rgba(246,193,68,0.08), transparent 60%),
-				linear-gradient(180deg, #0a0f1f, #0b1020 60%);
 			color: var(--text);
 		}
-		body::before {
+		.page-bg {
+			position: fixed;
+			inset: 0;
+			background:
+				radial-gradient(ellipse 1400px 900px at 20% 15%, rgba(37,244,183,0.12), transparent 65%),
+				radial-gradient(ellipse 1400px 900px at 85% 10%, rgba(246,193,68,0.08), transparent 65%),
+				linear-gradient(180deg, #0a0f1f 0%, #0b1020 100%);
+			z-index: -2;
+		}
+		.page-bg::before {
 			content: "";
 			position: fixed;
 			inset: 0;
 			background-image:
-				linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-				linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-			background-size: 36px 36px;
-			opacity: 0.4;
+				linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+				linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+			background-size: 40px 40px;
+			opacity: 0.5;
 			pointer-events: none;
-			z-index: 0;
+			z-index: -1;
 		}
-		.wrap {
+		.main-wrap {
 			max-width: 1080px;
-			margin: 36px auto;
+			margin: 0 auto;
 			padding: 0 24px 60px;
-			position: relative;
-			z-index: 1;
 		}
 		.app-header {
 			display: flex;
 			align-items: center;
 			justify-content: space-between;
 			gap: 16px;
-			padding: 18px 24px 0;
-			max-width: 1080px;
-			margin: 0 auto;
+			padding: 14px 32px;
+			width: 100%;
 		}
 		.brand {
 			cursor: pointer;

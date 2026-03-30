@@ -13,10 +13,10 @@ func hasType(events []Event, typ string) bool {
 
 func TestJoinStartsRound(t *testing.T) {
 	m := NewManager()
-	if _, err := m.Join("room1", "u1", "default", "en"); err != nil {
+	if _, err := m.Join("room1", "u1", "default", "intermediate", "en", ""); err != nil {
 		t.Fatalf("join u1: %v", err)
 	}
-	events, err := m.Join("room1", "u2", "default", "en")
+	events, err := m.Join("room1", "u2", "default", "intermediate", "en", "")
 	if err != nil {
 		t.Fatalf("join u2: %v", err)
 	}
@@ -27,23 +27,23 @@ func TestJoinStartsRound(t *testing.T) {
 
 func TestRoomFull(t *testing.T) {
 	m := NewManager()
-	if _, err := m.Join("room1", "u1", "default", "en"); err != nil {
+	if _, err := m.Join("room1", "u1", "default", "intermediate", "en", ""); err != nil {
 		t.Fatalf("join u1: %v", err)
 	}
-	if _, err := m.Join("room1", "u2", "default", "en"); err != nil {
+	if _, err := m.Join("room1", "u2", "default", "intermediate", "en", ""); err != nil {
 		t.Fatalf("join u2: %v", err)
 	}
-	if _, err := m.Join("room1", "u3", "default", "en"); err != ErrRoomFull {
+	if _, err := m.Join("room1", "u3", "default", "intermediate", "en", ""); err != ErrRoomFull {
 		t.Fatalf("expected ErrRoomFull, got %v", err)
 	}
 }
 
 func TestSubmitAnswerWrongNoRoundStart(t *testing.T) {
 	m := NewManager()
-	if _, err := m.Join("room1", "u1", "default", "en"); err != nil {
+	if _, err := m.Join("room1", "u1", "default", "intermediate", "en", ""); err != nil {
 		t.Fatalf("join u1: %v", err)
 	}
-	if _, err := m.Join("room1", "u2", "default", "en"); err != nil {
+	if _, err := m.Join("room1", "u2", "default", "intermediate", "en", ""); err != nil {
 		t.Fatalf("join u2: %v", err)
 	}
 	events, err := m.SubmitAnswer("room1", "u1", "wrong", 3000)
@@ -66,10 +66,10 @@ func TestSubmitAnswerWrongNoRoundStart(t *testing.T) {
 
 func TestRoundTimeoutAdvances(t *testing.T) {
 	m := NewManager()
-	if _, err := m.Join("room1", "u1", "default", "en"); err != nil {
+	if _, err := m.Join("room1", "u1", "default", "intermediate", "en", ""); err != nil {
 		t.Fatalf("join u1: %v", err)
 	}
-	events, err := m.Join("room1", "u2", "default", "en")
+	events, err := m.Join("room1", "u2", "default", "intermediate", "en", "")
 	if err != nil {
 		t.Fatalf("join u2: %v", err)
 	}

@@ -1,6 +1,8 @@
 package duel
 
 type Player struct {
-	ID string
-	HP int
+	ID     string
+	HP     int
+	Avatar string
+	Elo    int
 }

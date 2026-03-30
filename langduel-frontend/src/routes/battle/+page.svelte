@@ -5,6 +5,15 @@
 
   let answer = '';
 
+  $: currentUser = $duel.currentUser || '';
+  $: playerA = $duel.playerA || '';
+  $: playerB = $duel.playerB || '';
+  $: isPlayerA = currentUser && playerA === currentUser;
+  $: myAvatarEmoji = duel.getAvatarEmoji($duel.userAvatar || 'default');
+  $: opponentAvatarEmoji = duel.getAvatarEmoji($duel.opponentAvatar || 'default');
+  $: playerAEmoji = isPlayerA ? myAvatarEmoji : opponentAvatarEmoji;
+  $: playerBEmoji = isPlayerA ? opponentAvatarEmoji : myAvatarEmoji;
+
   onMount(() => {
     duel.init();
     const params = new URLSearchParams(window.location.search);
@@ -17,8 +26,10 @@
 
 <div class="battle-wrap">
   <BattleView
-    playerA={$duel.playerA}
-    playerB={$duel.playerB}
+    playerA={playerA}
+    playerB={playerB}
+    playerAEmoji={playerAEmoji}
+    playerBEmoji={playerBEmoji}
     hp={$duel.hp}
     promptText={$duel.promptText}
     timerText={$duel.timerText}

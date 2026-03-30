@@ -22,23 +22,27 @@ const (
 )
 
 type Event struct {
-	Type       string         `json:"type"`
-	RoomID     string         `json:"room_id"`
-	Round      int            `json:"round,omitempty"`
-	RoundToken int            `json:"round_token,omitempty"`
-	Topic      string         `json:"topic,omitempty"`
-	Lang       string         `json:"lang,omitempty"`
-	Prompt     string         `json:"prompt,omitempty"`
-	Players    []string       `json:"players,omitempty"`
-	HP         map[string]int `json:"hp,omitempty"`
-	AttackerID string         `json:"attacker_id,omitempty"`
-	DefenderID string         `json:"defender_id,omitempty"`
-	Damage     int            `json:"damage,omitempty"`
-	Correct    bool           `json:"correct,omitempty"`
-	Speed      int            `json:"speed,omitempty"`
-	WinnerID   string         `json:"winner_id,omitempty"`
-	Reason     string         `json:"reason,omitempty"`
-	Error      string         `json:"error,omitempty"`
+	Type       string            `json:"type"`
+	RoomID     string            `json:"room_id"`
+	Round      int               `json:"round,omitempty"`
+	RoundToken int               `json:"round_token,omitempty"`
+	Topic      string            `json:"topic,omitempty"`
+	Difficulty string            `json:"difficulty,omitempty"`
+	Lang       string            `json:"lang,omitempty"`
+	Prompt     string            `json:"prompt,omitempty"`
+	Players    []string          `json:"players,omitempty"`
+	HP         map[string]int    `json:"hp,omitempty"`
+	Avatars    map[string]string `json:"avatars,omitempty"`
+	Elo        map[string]int    `json:"elo,omitempty"`
+	AttackerID string            `json:"attacker_id,omitempty"`
+	DefenderID string            `json:"defender_id,omitempty"`
+	Damage     int               `json:"damage,omitempty"`
+	Correct    bool              `json:"correct,omitempty"`
+	Speed      int               `json:"speed,omitempty"`
+	WinnerID   string            `json:"winner_id,omitempty"`
+	Reason     string            `json:"reason,omitempty"`
+	Error      string            `json:"error,omitempty"`
+	EloChange  map[string]int    `json:"elo_change,omitempty"`
 }
 
 type Manager struct {
@@ -55,7 +59,7 @@ func NewManager() *Manager {
 // Join добавляет игрока в комнату и запускает первый раунд,
 // когда в комнате появляются два игрока.
 // Возвращает список событий для рассылки по комнате.
-func (m *Manager) Join(roomID, userID, topic, lang string) ([]Event, error) {
+func (m *Manager) Join(roomID, userID, topic, difficulty, lang, avatar string) ([]Event, error) {
 	if roomID == "" || userID == "" {
 		return nil, errors.New("room_id and user_id are required")
 	}
@@ -76,11 +80,17 @@ func (m *Manager) Join(roomID, userID, topic, lang string) ([]Event, error) {
 	if room.Topic == "" && topic != "" {
 		room.Topic = topic
 	}
+	if room.Difficulty == "" && difficulty != "" {
+		room.Difficulty = difficulty
+	}
 	if room.Lang == "" && lang != "" {
 		room.Lang = lang
 	}
 
-	room.Players[userID] = &Player{ID: userID, HP: StartingHP}
+	if avatar == "" {
+		avatar = "default"
+	}
+	room.Players[userID] = &Player{ID: userID, HP: StartingHP, Avatar: avatar}
 
 	var events []Event
 	events = append(events, Event{
@@ -90,6 +100,7 @@ func (m *Manager) Join(roomID, userID, topic, lang string) ([]Event, error) {
 		Lang:    room.Lang,
 		Players: room.playerListLocked(),
 		HP:      room.hpMapLocked(),
+		Avatars: room.avatarMapLocked(),
 	})
 	events = append(events, room.snapshotEventLocked())
 
@@ -148,6 +159,7 @@ func (m *Manager) SubmitAnswer(roomID, userID, answer string, speed int) ([]Even
 			Type:     "game_over",
 			RoomID:   room.ID,
 			HP:       room.hpMapLocked(),
+			Elo:      room.eloMapLocked(),
 			WinnerID: attacker.ID,
 		})
 		return events, nil

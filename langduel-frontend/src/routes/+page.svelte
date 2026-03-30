@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { duel } from '$lib/stores/duel.js';
   import { onMount } from 'svelte';
+  import { _ } from 'svelte-i18n';
 
   onMount(() => {
     duel.init();
@@ -11,17 +12,17 @@
 <div class="wrap">
   <div class="hero">
     <h1 class="logo">LANGDUEL</h1>
-    <p class="tagline">TRANSLATE BATTLE</p>
+    <p class="tagline">{$_('home.subtitle')}</p>
   </div>
 
   <div class="buttons">
     <button class="play-btn" on:click={() => goto('/play')}>
       <span class="btn-icon">►</span>
-      PLAY
+      {$_('home.play')}
     </button>
     <button class="profile-btn" on:click={() => goto('/profile')}>
       <span class="btn-icon">👤</span>
-      PROFILE
+      {$_('home.profile')}
     </button>
   </div>
 
@@ -29,11 +30,11 @@
     {#if $duel.authMode === 'auth' && $duel.authedUsername}
       <span class="user-badge auth">{$duel.authedUsername}</span>
     {:else}
-      <span class="user-badge guest">Guest</span>
+      <span class="user-badge guest">{$_('profile.guest')}</span>
     {/if}
   </div>
 
-  <p class="notice">No registration. Just play.</p>
+  <p class="notice">{$_('auth.guestMode')}</p>
 </div>
 
 <style>

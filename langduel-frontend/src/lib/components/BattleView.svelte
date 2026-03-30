@@ -1,6 +1,10 @@
 <script>
+  import { _ } from 'svelte-i18n';
+  
   export let playerA = 'Player A';
   export let playerB = 'Player B';
+  export let playerAEmoji = '?';
+  export let playerBEmoji = '?';
   export let hp = {};
   export let promptText = '';
   export let timerText = '';
@@ -20,6 +24,23 @@
   export let onPlayAgain = () => {};
 
   let showLeaveConfirm = false;
+  let answerInput;
+  let lastPrompt = '';
+
+  function handleSend() {
+    onSend();
+    if (answerInput) {
+      answerInput.focus();
+    }
+  }
+
+  $: if (promptText && promptText !== lastPrompt && !gameOverOpen) {
+    lastPrompt = promptText;
+    answer = '';
+    if (answerInput) {
+      setTimeout(() => answerInput.focus(), 50);
+    }
+  }
 
   function handleLeave() {
     if (showLeaveConfirm) {
@@ -34,6 +55,7 @@
 <div class="battle-container">
   <div class="top-bar">
     <div class={`player-hp ${hitA ? 'hit' : ''}`}>
+      <span class="player-avatar">{playerAEmoji}</span>
       <span class="hp-name">{playerA}</span>
       <div class="hp-bar">
         <div class="hp-fill" style={`width: ${hp[playerA] != null ? Math.max(0, Math.min(100, hp[playerA])) : 100}%`}></div>
@@ -42,11 +64,12 @@
     </div>
 
     <div class="timer-section">
-      <div class="round-label">{roundInfo || 'ROUND'}</div>
+      <div class="round-label">{roundInfo || $_('battle.round').toUpperCase()}</div>
       <div class="timer">{timerText || '0:00'}</div>
     </div>
 
     <div class={`player-hp opponent ${hitB ? 'hit' : ''}`}>
+      <span class="player-avatar">{playerBEmoji}</span>
       <span class="hp-name">{playerB}</span>
       <div class="hp-bar">
         <div class="hp-fill" style={`width: ${hp[playerB] != null ? Math.max(0, Math.min(100, hp[playerB])) : 100}%`}></div>
@@ -57,55 +80,56 @@
 
   <div class="prompt-section">
     <div class="prompt-card">
-      <div class="prompt-text">{promptText || 'Waiting...'}</div>
-      <div class="prompt-hint">translate this</div>
+      <div class="prompt-text">{promptText || $_('lobby.waiting')}</div>
+      <div class="prompt-hint">{$_('battle.translate')}</div>
     </div>
   </div>
 
   <div class="input-section">
     <input 
       class="answer-input" 
-      placeholder="type answer..." 
+      placeholder={$_('battle.typeAnswer')} 
       bind:value={answer} 
+      bind:this={answerInput}
       autocomplete="off"
-      on:keydown={(e) => e.key === 'Enter' && answer.trim() && onSend()}
+      on:keydown={(e) => e.key === 'Enter' && answer.trim() && handleSend()}
     />
-    <button class="submit-btn" on:click={onSend} disabled={!answer.trim()}>
-      SUBMIT
+    <button class="submit-btn" on:click={handleSend} disabled={!answer.trim()}>
+      {$_('battle.submit').toUpperCase()}
     </button>
   </div>
 
   <div class="quit-section">
     <button class="quit-btn" class:confirm={showLeaveConfirm} on:click={handleLeave}>
-      {showLeaveConfirm ? 'CONFIRM QUIT' : 'quit'}
+      {showLeaveConfirm ? $_('battle.confirmQuit').toUpperCase() : $_('battle.quit')}
     </button>
   </div>
 
   {#if gameOverOpen}
     <div class="game-over-overlay">
       <div class="game-over-modal">
-        <div class="game-over-title">GAME OVER</div>
+        <div class="game-over-title">{$_('battle.quit').toUpperCase()}</div>
         <div class="game-over-result">{gameOverText}</div>
         <div class="game-over-hp">{gameOverHP}</div>
         <div class="game-over-stats">
           <div class="stat">
-            <span class="stat-label">Correct</span>
+            <span class="stat-label">{$_('battle.correct')}</span>
             <span class="stat-value">{correctCount}</span>
           </div>
           <div class="stat">
-            <span class="stat-label">Wrong</span>
+            <span class="stat-label">{$_('battle.wrong')}</span>
             <span class="stat-value">{wrongCount}</span>
           </div>
           <div class="stat">
-            <span class="stat-label">Damage</span>
+            <span class="stat-label">{$_('battle.damage')}</span>
             <span class="stat-value">{totalDamage}</span>
           </div>
         </div>
         <button class="play-again-btn" on:click={onPlayAgain}>
-          PLAY AGAIN
+          {$_('gameOver.playAgain').toUpperCase()}
         </button>
         <button class="home-btn" on:click={onLeave}>
-          HOME
+          {$_('gameOver.home').toUpperCase()}
         </button>
       </div>
     </div>
@@ -160,6 +184,12 @@
     color: var(--muted);
     text-transform: uppercase;
     letter-spacing: 1px;
+  }
+
+  .player-avatar {
+    font-size: 24px;
+    display: block;
+    margin-bottom: 4px;
   }
 
   .hp-bar {

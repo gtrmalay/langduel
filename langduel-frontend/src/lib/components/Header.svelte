@@ -1,16 +1,10 @@
 <script>
   import { goto } from '$app/navigation';
   import { duel } from '$lib/stores/duel.js';
+  import { _ } from 'svelte-i18n';
+  import LangSwitcher from './LangSwitcher.svelte';
 
   export let show = true;
-
-  function goProfile() {
-    if ($duel.authedUsername) {
-      goto('/profile');
-    } else {
-      goto('/auth?next=/profile');
-    }
-  }
 </script>
 
 {#if show}
@@ -19,16 +13,22 @@
       <span class="logo">LangDuel</span>
     </button>
     <div class="nav">
-      <button class="nav-btn" on:click={() => goto('/play')}>Play</button>
-      <button class="nav-btn ghost" on:click={goProfile}>Profile</button>
-      {#if $duel.authMode === 'auth' && $duel.authedUsername}
-        <div class="user-pill">{$duel.authedUsername}</div>
-        <button class="nav-btn ghost" on:click={() => { duel.logout(); goto('/'); }}>Logout</button>
+      <button class="nav-btn" on:click={() => goto('/play')}>{$_('nav.play')}</button>
+      <button class="nav-btn rank" on:click={() => goto('/leaderboard')}>🏆 {$_('nav.rating')}</button>
+      
+      {#if $duel.authedUsername}
+        <button class="nav-btn profile" on:click={() => goto('/profile')}>
+          {$duel.authedUsername}
+        </button>
+        <button class="nav-btn ghost" on:click={() => { duel.logout(); goto('/'); }}>
+          {$_('nav.logout')}
+        </button>
       {:else}
         <button class="nav-btn ghost" on:click={() => goto('/auth')}>
-          {$duel.authedUsername ? 'Account' : 'Login'}
+          {$_('nav.login')}
         </button>
       {/if}
+      <LangSwitcher />
     </div>
   </header>
 {/if}
@@ -38,21 +38,26 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 24px;
-    max-width: 1080px;
-    margin: 0 auto;
+    padding: 10px 32px;
+    width: 100%;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(11, 16, 32, 0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(43, 52, 74, 0.5);
   }
 
   .brand {
     background: none;
     border: none;
     cursor: pointer;
-    padding: 0;
+    padding: 4px 0;
   }
 
   .logo {
     font-family: "Press Start 2P", cursive;
-    font-size: 14px;
+    font-size: 13px;
     color: var(--text);
     letter-spacing: 2px;
   }
@@ -64,24 +69,36 @@
   .nav {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
   }
 
   .nav-btn {
-    padding: 10px 18px;
-    border-radius: 10px;
+    padding: 8px 16px;
+    border-radius: 8px;
     border: 1px solid var(--accent);
-    background: linear-gradient(135deg, rgba(37, 244, 183, 0.2), rgba(37, 244, 183, 0.05));
+    background: linear-gradient(135deg, rgba(37, 244, 183, 0.15), rgba(37, 244, 183, 0.05));
     color: var(--text);
     font-family: "Space Grotesk", sans-serif;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
   }
 
   .nav-btn:hover {
-    box-shadow: 0 0 15px rgba(37, 244, 183, 0.35);
+    background: linear-gradient(135deg, rgba(37, 244, 183, 0.25), rgba(37, 244, 183, 0.1));
+    box-shadow: 0 0 12px rgba(37, 244, 183, 0.3);
+  }
+
+  .nav-btn.profile {
+    border-color: var(--accent-2);
+    background: rgba(246, 193, 68, 0.12);
+    color: var(--accent-2);
+  }
+
+  .nav-btn.profile:hover {
+    background: rgba(246, 193, 68, 0.2);
+    box-shadow: 0 0 12px rgba(246, 193, 68, 0.25);
   }
 
   .nav-btn.ghost {
@@ -91,16 +108,19 @@
   }
 
   .nav-btn.ghost:hover {
-    border-color: var(--accent);
+    border-color: var(--text);
     color: var(--text);
+    background: rgba(255, 255, 255, 0.05);
   }
 
-  .user-pill {
-    padding: 8px 14px;
-    border-radius: 999px;
-    border: 1px solid var(--outline);
-    background: rgba(11, 15, 31, 0.8);
-    font-size: 12px;
-    color: var(--accent);
+  .nav-btn.rank {
+    border-color: var(--accent-2);
+    background: rgba(246, 193, 68, 0.1);
+    color: var(--accent-2);
+  }
+
+  .nav-btn.rank:hover {
+    background: rgba(246, 193, 68, 0.2);
+    box-shadow: 0 0 12px rgba(246, 193, 68, 0.25);
   }
 </style>

@@ -16,6 +16,19 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+func difficultyToInt(d string) int {
+	switch d {
+	case "beginner":
+		return 1
+	case "intermediate":
+		return 2
+	case "advanced":
+		return 3
+	default:
+		return 2 // default to intermediate
+	}
+}
+
 // CheckOrigin: for MVP accept any origin. Tighten for production.
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
@@ -25,25 +38,25 @@ var hub = NewHub()
 var mgr = duel.GlobalManager
 var repo *storage.DuelRepo
 var roomDuelID = struct {
-	mu    sync.Mutex
+	mu     sync.Mutex
 	byRoom map[string]string
 }{
 	byRoom: make(map[string]string),
 }
 var roomParticipants = struct {
-	mu    sync.Mutex
+	mu         sync.Mutex
 	byRoomUser map[string]map[string]string
 }{
 	byRoomUser: make(map[string]map[string]string),
 }
 var roomUserID = struct {
-	mu    sync.Mutex
+	mu         sync.Mutex
 	byRoomUser map[string]map[string]string
 }{
 	byRoomUser: make(map[string]map[string]string),
 }
 var roomRoundID = struct {
-	mu    sync.Mutex
+	mu          sync.Mutex
 	byRoomRound map[string]map[int]string
 }{
 	byRoomRound: make(map[string]map[int]string),
@@ -231,7 +244,8 @@ func handleJoin(c *Client, msg duel.Message) {
 				sendError(c, msg.RoomID, "db error")
 				return
 			}
-			d, err = repo.CreateDuel(ctx, msg.RoomID, user.ID, msg.Topic, msg.Lang, "ru")
+			difficulty := difficultyToInt(msg.Difficulty)
+			d, err = repo.CreateDuel(ctx, msg.RoomID, user.ID, msg.Topic, difficulty, msg.Lang, "ru")
 			if err != nil {
 				log.Printf("DB CreateDuel error: %v", err)
 				sendError(c, msg.RoomID, "failed to create duel")
@@ -274,7 +288,7 @@ func handleJoin(c *Client, msg duel.Message) {
 		roomUserID.mu.Unlock()
 	}
 
-	events, err := mgr.Join(msg.RoomID, msg.UserID, msg.Topic, msg.Lang)
+	events, err := mgr.Join(msg.RoomID, msg.UserID, msg.Topic, msg.Difficulty, msg.Lang, msg.Avatar)
 	if err != nil {
 		sendError(c, msg.RoomID, err.Error())
 		return
@@ -370,13 +384,47 @@ func handleAnswer(c *Client, msg duel.Message) {
 					// winner
 					roomUserID.mu.Lock()
 					winnerUserID := ""
+					loserUserID := ""
 					if m := roomUserID.byRoomUser[ev.RoomID]; m != nil {
 						winnerUserID = m[ev.WinnerID]
+						for uid, uid2 := range m {
+							if uid != ev.WinnerID {
+								loserUserID = uid2
+							}
+						}
 					}
 					roomUserID.mu.Unlock()
 					if winnerUserID != "" {
 						if err := repo.SetDuelWinner(ctx, duelID, winnerUserID); err != nil {
 							log.Printf("DB SetDuelWinner error: %v", err)
+						}
+						// Update ratings
+						if loserUserID != "" {
+							if err := repo.UpdateRating(ctx, winnerUserID, loserUserID); err != nil {
+								log.Printf("DB UpdateRating error: %v", err)
+							} else {
+								// Get updated ratings
+								winnerRating, _ := repo.GetUserRating(ctx, winnerUserID)
+								loserRating, _ := repo.GetUserRating(ctx, loserUserID)
+								ev.EloChange = map[string]int{
+									winnerUserID: 25,
+									loserUserID:  -15,
+								}
+								winnerElo := 1000
+								loserElo := 1000
+								if winnerRating != nil {
+									winnerElo = winnerRating.Elo
+								}
+								if loserRating != nil {
+									loserElo = loserRating.Elo
+								}
+								ev.Elo = map[string]int{
+									winnerUserID: winnerElo,
+									loserUserID:  loserElo,
+								}
+								log.Printf("Rating updated: winner=%s +25=%d, loser=%s -15=%d",
+									winnerUserID, winnerElo, loserUserID, loserElo)
+							}
 						}
 					} else {
 						log.Printf("DB SetDuelWinner skipped: winner user_id not found for %s", ev.WinnerID)
@@ -404,8 +452,41 @@ func handleAnswer(c *Client, msg duel.Message) {
 							}
 							roomUserID.mu.Unlock()
 							if userID != "" {
-								if err := repo.UpdateUserStats(ctx, userID, uid == ev.WinnerID); err != nil {
+								isWinner := uid == ev.WinnerID
+
+								if err := repo.UpdateUserStats(ctx, userID, isWinner); err != nil {
 									log.Printf("DB UpdateUserStats error: %v", err)
+								}
+
+								// Award XP: +10 for win, +5 for loss
+								xpAmount := 10
+								if !isWinner {
+									xpAmount = 5
+								}
+								log.Printf("Awarding %d XP to user %s (winner: %v)", xpAmount, userID, isWinner)
+								oldLevel, newLevel, err := repo.AwardXP(ctx, userID, xpAmount)
+								if err != nil {
+									log.Printf("AwardXP error: %v", err)
+								} else {
+									log.Printf("XP awarded: user=%s, amount=%d, oldXP=%d, newLevel=%d", userID, xpAmount, oldLevel, newLevel)
+								}
+
+								// Check and unlock achievements
+								rating, _ := repo.GetUserRating(ctx, userID)
+								currentStreak := 0
+								if rating != nil {
+									currentStreak = rating.CurrentStreak
+									if isWinner && currentStreak < 1 {
+										currentStreak = 1
+									} else if !isWinner {
+										currentStreak = -1
+									}
+								}
+								unlocked, _ := repo.CheckAndUnlockAchievements(ctx, userID, isWinner, currentStreak)
+								if len(unlocked) > 0 {
+									for _, a := range unlocked {
+										log.Printf("Achievement unlocked: user=%s achievement=%s (%s)", userID, a.ID, a.Name)
+									}
 								}
 							}
 						}

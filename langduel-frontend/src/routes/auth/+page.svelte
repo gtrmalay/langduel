@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { duel } from '$lib/stores/duel.js';
+  import { _ } from 'svelte-i18n';
 
   let next = '/play';
   let authLogin = '';
@@ -44,17 +45,17 @@
 <div class="wrap">
   <div class="hero">
     <h1 class="title">LANGDUEL</h1>
-    <p class="subtitle">Choose your path</p>
+    <p class="subtitle">{$_('auth.choosePath')}</p>
   </div>
 
   <div class="choice-section">
     <button class="choice-card guest" on:click={chooseGuest}>
       <span class="choice-icon">🎮</span>
-      <span class="choice-title">PLAY AS GUEST</span>
-      <span class="choice-desc">Quick access, no account needed</span>
+      <span class="choice-title">{$_('auth.playAsGuest')}</span>
+      <span class="choice-desc">{$_('auth.guestDesc')}</span>
     </button>
 
-    <div class="divider">OR</div>
+    <div class="divider">{$_('auth.or')}</div>
 
     <div class="auth-form">
       <div class="tabs">
@@ -63,14 +64,14 @@
           class:active={$duel.authTab === 'login'}
           on:click={() => duel.setAuthTab('login')}
         >
-          LOGIN
+          {$_('auth.login').toUpperCase()}
         </button>
         <button 
           class="tab" 
           class:active={$duel.authTab === 'reg'}
           on:click={() => duel.setAuthTab('reg')}
         >
-          REGISTER
+          {$_('auth.register').toUpperCase()}
         </button>
       </div>
 
@@ -78,44 +79,44 @@
         <div class="form-fields">
           <input 
             type="text" 
-            placeholder="Username" 
+            placeholder={$_('auth.typeUsername')} 
             bind:value={authLogin} 
           />
           <input 
             type="password" 
-            placeholder="Password" 
+            placeholder={$_('auth.typePassword')} 
             bind:value={authPass} 
             on:keydown={(e) => e.key === 'Enter' && doLogin()}
           />
           <button class="submit-btn" on:click={doLogin}>
-            LOGIN
+            {$_('auth.loginBtn')}
           </button>
         </div>
       {:else}
         <div class="form-fields">
           <input 
             type="text" 
-            placeholder="Username" 
+            placeholder={$_('auth.typeUsername')} 
             bind:value={authLogin} 
           />
           <input 
             type="email" 
-            placeholder="Email" 
+            placeholder={$_('auth.typeEmail')} 
             bind:value={authEmail} 
           />
           <input 
             type="password" 
-            placeholder="Password" 
+            placeholder={$_('auth.typePassword')} 
             bind:value={authPass} 
           />
           <input 
             type="password" 
-            placeholder="Confirm password" 
+            placeholder={$_('auth.typeConfirmPassword')} 
             bind:value={regConfirm}
             on:keydown={(e) => e.key === 'Enter' && doRegister()}
           />
           <button class="submit-btn" on:click={doRegister}>
-            REGISTER
+            {$_('auth.registerBtn')}
           </button>
         </div>
       {/if}
@@ -127,7 +128,7 @@
   </div>
 
   <button class="back-btn" on:click={() => goto('/')}>
-    ← BACK TO HOME
+    {$_('profile.backToHome')}
   </button>
 </div>
 

@@ -1,8 +1,8 @@
 package duel
 
 import (
-	"sync"
 	"langduel/internal/storage"
+	"sync"
 )
 
 type Room struct {
@@ -12,18 +12,23 @@ type Room struct {
 	Round      int
 	RoundToken int
 	Topic      string
+	Difficulty string
 	Lang       string
 	Prompt     string
 	Expected   string
 	Started    bool
 }
 
-var phrasesByTopic = storage.PhraseSets
-
 func (r *Room) startRoundLocked() {
-	phrases := phrasesByTopic[r.Topic]
+	phrases := storage.GetPhrases(r.Topic, r.Difficulty)
 	if len(phrases) == 0 {
-		phrases = phrasesByTopic["default"]
+		phrases = storage.GetPhrases("default", r.Difficulty)
+	}
+	if len(phrases) == 0 {
+		phrases = storage.GetPhrases(r.Topic, "intermediate")
+	}
+	if len(phrases) == 0 {
+		phrases = storage.GetPhrases("default", "intermediate")
 	}
 	if len(phrases) == 0 {
 		r.Prompt = ""
@@ -65,6 +70,22 @@ func (r *Room) playerListLocked() []string {
 	return players
 }
 
+func (r *Room) avatarMapLocked() map[string]string {
+	avatars := make(map[string]string, len(r.Players))
+	for id, p := range r.Players {
+		avatars[id] = p.Avatar
+	}
+	return avatars
+}
+
+func (r *Room) eloMapLocked() map[string]int {
+	elo := make(map[string]int, len(r.Players))
+	for id, p := range r.Players {
+		elo[id] = p.Elo
+	}
+	return elo
+}
+
 func (r *Room) snapshotEventLocked() Event {
 	return Event{
 		Type:       "room_state",
@@ -72,6 +93,7 @@ func (r *Room) snapshotEventLocked() Event {
 		Round:      r.Round,
 		RoundToken: r.RoundToken,
 		Topic:      r.Topic,
+		Difficulty: r.Difficulty,
 		Lang:       r.Lang,
 		Prompt:     r.Prompt,
 		Players:    r.playerListLocked(),
@@ -86,6 +108,7 @@ func (r *Room) roundStartEventLocked() Event {
 		Round:      r.Round,
 		RoundToken: r.RoundToken,
 		Topic:      r.Topic,
+		Difficulty: r.Difficulty,
 		Lang:       r.Lang,
 		Prompt:     r.Prompt,
 		HP:         r.hpMapLocked(),

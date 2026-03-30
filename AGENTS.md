@@ -6,7 +6,35 @@ LangDuel is a browser-based 1v1 translation battle game:
 
 ---
 
-## 1. Build, Run & Test Commands
+## Roadmap
+
+| # | Этап | Статус |
+|---|-------|--------|
+| 0 | MVP (базовые баттлы, профиль, i18n) | ✅ Готово |
+| 1 | ELO + Лидерборд | ✅ Готово |
+| 2 | AI Генерация фраз | 📋 Запланирован |
+| 3 | Ачивки | ✅ Готово |
+| 4 | XP + Level | 📋 Запланирован |
+| 5 | Косметика | 📋 Запланирован |
+| 6 | Анимации | 📋 Запланирован |
+
+### Ранги ELO
+| Звание | ELO |
+|--------|-----|
+| 🥉 Newbie | 0-999 |
+| 🥈 Apprentice | 1000-1999 |
+| 🥇 Expert | 2000-2999 |
+| 💎 Master | 3000+ |
+| 😔 Struggler | 0 (если >10 поражений) |
+
+### Формула ELO
+- Победа: +25 ELO
+- Поражение: -15 ELO
+- Минимум: 0
+
+---
+
+## Build, Run & Test Commands
 
 ### Frontend
 ```bash
@@ -34,7 +62,7 @@ golangci-lint run                      # Lint (requires golangci-lint)
 
 ---
 
-## 2. Project Structure
+## Project Structure
 
 ```
 langduel/
@@ -51,9 +79,17 @@ langduel/
 ├── langduel-frontend/
 │   ├── src/
 │   │   ├── routes/           # SvelteKit pages
+│   │   │   ├── +page.svelte     # Home
+│   │   │   ├── play/+page.svelte   # Create/Join room
+│   │   │   ├── lobby/+page.svelte  # Waiting room
+│   │   │   ├── battle/+page.svelte # Game (no header)
+│   │   │   ├── profile/+page.svelte # User stats
+│   │   │   ├── auth/+page.svelte    # Login/Register
+│   │   │   └── leaderboard/+page.svelte # Leaderboard
 │   │   └── lib/
-│   │       ├── stores/       # Svelte stores (duel.js)
-│   │       └── components/  # UI components
+│   │       ├── stores/duel.js       # Game state store
+│   │       ├── i18n/                 # Translations (en.json, ru.json)
+│   │       └── components/          # UI components
 │   └── package.json
 │
 └── AGENTS.md
@@ -61,7 +97,7 @@ langduel/
 
 ---
 
-## 3. Go Code Style
+## Go Code Style
 
 ### Conventions
 - One package per directory
@@ -89,36 +125,67 @@ if room.Full() {
 
 ---
 
-## 4. Svelte Code Style
+## Svelte Code Style
 
 ### Conventions (Svelte 5)
-- Props via `export let` for compatibility
+- Props via `export let` for Svelte 4 compatibility
 - Use `$state()`, `$derived()`, `$effect()` runes when needed
 - Components in `src/lib/components/`, pages in `src/routes/`
+- Header hidden on `/battle` page (fullscreen game)
 
 ### Import Patterns
 ```javascript
 import { goto } from '$app/navigation';
+import { page } from '$app/stores';
 import { duel } from '$lib/stores/duel.js';
 import Button from '$lib/components/Button.svelte';
+```
+
+### Store Usage (duel.js)
+```javascript
+// Subscribe to store
+let value = $duel.someField;
+
+// Update store
+duel.setField('fieldName', value);
+duel.setAuthMode('guest');
+duel.selectGuest();
+duel.logout();
+```
+
+### Event Handling
+```svelte
+<button on:click={handler}>Click</button>
+<button on:click={() => func(param)}>Click</button>
+<input bind:value={text} on:keydown={(e) => e.key === 'Enter' && submit()} />
 ```
 
 ### CSS Variables (defined in +layout.svelte)
 ```css
 :root {
-  --bg: #0b1020;
-  --card: #171f33;
-  --text: #e9edf6;
-  --accent: #25f4b7;
-  --accent-2: #f6c144;
-  --danger: #ff5c7a;
-  --outline: #2b344a;
+    --bg: #0b1020;
+    --card: #171f33;
+    --text: #e9edf6;
+    --accent: #25f4b7;     /* Green - success, HP */
+    --accent-2: #f6c144;   /* Yellow - timer, warnings */
+    --danger: #ff5c7a;      /* Red - low HP, errors */
+    --outline: #2b344a;
 }
 ```
 
 ---
 
-## 5. API Endpoints
+## Auth Flow
+
+- Guest mode is default (no registration required)
+- Auth is optional for saving stats/history
+- Store fields: `authMode` ('guest' | 'auth'), `authedUsername`, `jwtToken`
+- On logout: always set `authMode: 'guest'`
+- On first visit to `/play`: redirect to `/auth` to choose mode
+
+---
+
+## API Endpoints
 
 ### HTTP (REST)
 ```
@@ -126,7 +193,9 @@ POST /auth/register  {"username", "email", "password"}
 POST /auth/login     {"login", "password"}
 GET  /me             (Bearer token) -> user info
 GET  /me/stats       (Bearer token) -> statistics
-GET  /me/duels      (Bearer token) -> duel history
+GET  /me/duels       (Bearer token) -> duel history
+GET  /me/rating      (Bearer token) -> ELO rating
+GET  /leaderboard    -> top 100 players
 ```
 
 ### WebSocket (ws://localhost:8080/ws)
@@ -140,33 +209,41 @@ GET  /me/duels      (Bearer token) -> duel history
 {"type": "player_joined", "players", "hp"}
 {"type": "round_start", "round", "prompt", "hp"}
 {"type": "update", "attacker_id", "defender_id", "damage", "correct", "hp"}
-{"type": "game_over", "winner_id", "hp"}
+{"type": "game_over", "winner_id", "hp", "elo_change"}
 {"type": "error", "error"}
 ```
 
 ---
 
-## 6. Game State
+## Game State
 
 ### Backend (Go)
 - `Manager`: holds all rooms, manages creation/removal
 - `Room`: players, current round, HP, game status
-- `Player`: ID, name, HP
+- `Player`: ID, name, HP, Elo
 
 ### Frontend (duel.js store)
 - `authMode`: 'guest' or 'auth'
 - `currentRoom`: active room ID
 - `currentUser`: player ID
 - `hp`: { playerId: hpValue }
+- `elo`: { playerId: eloValue }
 - `promptText`: phrase to translate
 - `timerText`: countdown display
 
+### Game Rules
+- 2 players per room
+- Game is "first blood" - ends when any player reaches 0 HP
+- Round timer: 10 seconds
+
 ---
 
-## 7. Notes for Agents
+## Notes for Agents
 
-- Guest mode is default; auth is optional for saving stats
-- Game is "first blood" - ends when any player reaches 0 HP
-- WebSocket is primary communication channel for game state
 - No ESLint/Prettier - format code manually
 - Test files use standard Go testing package
+- WebSocket is primary communication channel for game state
+- Header not shown on battle page to avoid distraction
+- Use confirmation dialogs for Leave/Logout actions
+- Guests are excluded from leaderboard
+- AI generation uses Grok or GPT-3.5 for phrase generation
