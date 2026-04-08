@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
@@ -8,9 +9,12 @@ import (
 	"os"
 	"time"
 
+	"langduel/internal/ai"
+	"langduel/internal/duel"
 	"langduel/internal/storage"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -64,13 +68,26 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		http.Error(w, "hash error", http.StatusInternalServerError)
+		http.Error(w, "hash error", http.StatusBadRequest)
 		return
 	}
 
-	user, err := repo.CreateUser(r.Context(), req.Username, req.Email, string(hash))
+	var user *storage.User
+	var errMsg string
+
+	user, err = repo.ConvertGuestToUser(r.Context(), req.Username, req.Email, string(hash))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		if err == storage.ErrNotFound {
+			user, err = repo.CreateUser(r.Context(), req.Username, req.Email, string(hash))
+			if err != nil {
+				errMsg = err.Error()
+			}
+		} else {
+			errMsg = err.Error()
+		}
+	}
+	if errMsg != "" {
+		http.Error(w, errMsg, http.StatusBadRequest)
 		return
 	}
 
@@ -193,16 +210,20 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request, u authedUser) 
 	user, err := repo.GetUserByID(r.Context(), u.ID)
 	if err != nil {
 		writeJSON(w, map[string]any{
-			"user_id":  u.ID,
-			"username": u.Username,
-			"avatar":   "default",
+			"user_id":          u.ID,
+			"username":         u.Username,
+			"avatar":           "default",
+			"coins":            0,
+			"unlocked_avatars": []string{"default"},
 		})
 		return
 	}
 	writeJSON(w, map[string]any{
-		"user_id":  user.ID,
-		"username": user.Username,
-		"avatar":   user.Avatar,
+		"user_id":          user.ID,
+		"username":         user.Username,
+		"avatar":           user.Avatar,
+		"coins":            user.Coins,
+		"unlocked_avatars": user.UnlockedAvatars,
 	})
 }
 
@@ -248,6 +269,81 @@ func (s *Server) handleMyDuels(w http.ResponseWriter, r *http.Request, u authedU
 		return
 	}
 	writeJSON(w, items)
+}
+
+func (s *Server) handleDuelDetails(w http.ResponseWriter, r *http.Request, u authedUser) {
+	if repo == nil {
+		http.Error(w, "db not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	duelID := r.URL.Query().Get("id")
+	if duelID == "" {
+		http.Error(w, "duel id required", http.StatusBadRequest)
+		return
+	}
+
+	detail, err := repo.GetDuelDetails(r.Context(), duelID, u.ID)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			http.Error(w, "duel not found", http.StatusNotFound)
+			return
+		}
+		log.Printf("GET /duels error: %v", err)
+		http.Error(w, "failed to get duel details", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, detail)
+}
+
+func (s *Server) handleDuelAnalysisPublic(w http.ResponseWriter, r *http.Request) {
+	duelID := r.URL.Query().Get("id")
+	if duelID == "" {
+		http.Error(w, "duel id required", http.StatusBadRequest)
+		return
+	}
+
+	if _, err := uuid.Parse(duelID); err != nil {
+		http.Error(w, "invalid duel id format", http.StatusBadRequest)
+		return
+	}
+
+	if repo == nil {
+		http.Error(w, "db not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	analysis, err := repo.GetDuelAnalysis(r.Context(), duelID)
+	if err != nil {
+		log.Printf("GET /analysis error: %v", err)
+		http.Error(w, "failed to get analysis", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, analysis)
+}
+
+func (s *Server) handleDuelAnalysis(w http.ResponseWriter, r *http.Request, u authedUser) {
+	if repo == nil {
+		http.Error(w, "db not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	duelID := r.URL.Query().Get("id")
+	if duelID == "" {
+		http.Error(w, "duel id required", http.StatusBadRequest)
+		return
+	}
+
+	analysis, err := repo.GetDuelAnalysis(r.Context(), duelID)
+	if err != nil {
+		log.Printf("GET /analysis error: %v", err)
+		http.Error(w, "failed to get analysis", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, analysis)
 }
 
 type updateUsernameReq struct {
@@ -392,4 +488,209 @@ func (s *Server) handleClaimCoins(w http.ResponseWriter, r *http.Request, u auth
 
 	log.Printf("POST /me/claim-coins result: %d coins for user %s", coins, u.ID)
 	writeJSON(w, map[string]int{"coins_awarded": coins})
+}
+
+type buyAvatarReq struct {
+	AvatarID string `json:"avatar_id"`
+}
+
+func (s *Server) handleBuyAvatar(w http.ResponseWriter, r *http.Request, u authedUser) {
+	log.Printf("POST /me/buy-avatar called for user: %s", u.ID)
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if repo == nil {
+		http.Error(w, "db not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req buyAvatarReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+
+	if req.AvatarID == "" {
+		http.Error(w, "avatar_id required", http.StatusBadRequest)
+		return
+	}
+
+	avatarPrices := map[string]int{
+		"knight":    50,
+		"wizard":    75,
+		"archer":    75,
+		"dragon":    100,
+		"skull":     50,
+		"fire":      60,
+		"ice":       60,
+		"lightning": 80,
+		"sword":     50,
+		"shield":    50,
+		"potion":    60,
+		"crown":     150,
+		"star":      100,
+		"moon":      80,
+	}
+
+	price, ok := avatarPrices[req.AvatarID]
+	if !ok {
+		http.Error(w, "invalid avatar", http.StatusBadRequest)
+		return
+	}
+
+	userBefore, _ := repo.GetUserByID(r.Context(), u.ID)
+	log.Printf("DEBUG: user %s has %d coins, avatar %s costs %d", u.ID, userBefore.Coins, req.AvatarID, price)
+
+	err := repo.BuyAvatar(r.Context(), u.ID, req.AvatarID, price)
+	if err != nil {
+		log.Printf("POST /me/buy-avatar error: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	user, _ := repo.GetUserByID(r.Context(), u.ID)
+	writeJSON(w, map[string]interface{}{
+		"success":          true,
+		"avatar_id":        req.AvatarID,
+		"price":            price,
+		"coins":            user.Coins,
+		"unlocked_avatars": user.UnlockedAvatars,
+	})
+}
+
+type generatePhrasesReq struct {
+	RoomID     string `json:"room_id"`
+	Topic      string `json:"topic"`
+	Difficulty string `json:"difficulty"`
+	LangFrom   string `json:"lang_from"`
+	LangTo     string `json:"lang_to"`
+}
+
+func difficultyToInt(d string) int {
+	switch d {
+	case "beginner":
+		return 1
+	case "intermediate":
+		return 2
+	case "advanced":
+		return 3
+	default:
+		return 2
+	}
+}
+
+func (s *Server) handleGeneratePhrases(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if repo == nil {
+		http.Error(w, "db not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req generatePhrasesReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+
+	if req.RoomID == "" || req.Topic == "" || req.Difficulty == "" {
+		http.Error(w, "room_id, topic and difficulty required", http.StatusBadRequest)
+		return
+	}
+
+	if err := duel.ValidateRoomID(req.RoomID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := duel.ValidateDifficulty(req.Difficulty); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.LangFrom == "" {
+		req.LangFrom = "en"
+	}
+	if req.LangTo == "" {
+		req.LangTo = "ru"
+	}
+
+	if req.LangFrom != "en" && req.LangFrom != "ru" {
+		http.Error(w, "lang_from must be 'en' or 'ru'", http.StatusBadRequest)
+		return
+	}
+	if req.LangTo != "en" && req.LangTo != "ru" {
+		http.Error(w, "lang_to must be 'en' or 'ru'", http.StatusBadRequest)
+		return
+	}
+
+	if req.Topic == "custom" || req.Topic == "" {
+		http.Error(w, "topic cannot be 'custom' or empty", http.StatusBadRequest)
+		return
+	}
+	if err := duel.ValidateTopic(req.Topic); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Try to get existing duel by room code first
+	d, err := repo.GetDuelByRoomCode(r.Context(), req.RoomID)
+	if err != nil {
+		// No existing duel - generate phrases without saving to DB first
+		// We'll create the duel when players actually join
+		log.Printf("No duel exists for room %s, generating phrases without DB", req.RoomID)
+		d = nil
+	} else {
+		log.Printf("Found existing duel %s for room %s", d.ID, req.RoomID)
+	}
+
+	log.Printf("Generating phrases for topic=%s difficulty=%s lang=%s->%s",
+		req.Topic, req.Difficulty, req.LangFrom, req.LangTo)
+
+	generator := ai.NewGenerator()
+
+	// Create context with timeout for AI generation
+	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+	defer cancel()
+
+	phrases, err := generator.GeneratePhrases(ctx, req.Topic, req.Difficulty, req.LangFrom, req.LangTo, 20)
+
+	if err != nil {
+		log.Printf("AI generation error: %v", err)
+		http.Error(w, "failed to generate phrases: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("Successfully generated %d phrases", len(phrases))
+
+	duelID := ""
+	if d != nil {
+		duelID = d.ID
+	}
+
+	// Always save with room_code for easy lookup
+	for _, p := range phrases {
+		err := repo.SaveAIPhrase(r.Context(), duelID, req.RoomID, p.Prompt, p.Answers, req.Topic, req.Difficulty, req.LangFrom, req.LangTo)
+		if err != nil {
+			log.Printf("Failed to save phrase: %v", err)
+			http.Error(w, "failed to save phrases", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if d != nil {
+		log.Printf("Saved %d phrases for duel %s (room %s)", len(phrases), d.ID, req.RoomID)
+	} else {
+		log.Printf("Saved %d phrases for room %s (no duel yet)", len(phrases), req.RoomID)
+	}
+
+	writeJSON(w, map[string]any{
+		"success": true,
+		"count":   len(phrases),
+		"duel_id": duelID,
+		"phrases": phrases,
+	})
 }

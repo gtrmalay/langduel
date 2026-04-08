@@ -5,7 +5,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"langduel/internal/server"
 	"langduel/internal/storage"
@@ -15,7 +18,6 @@ import (
 )
 
 func main() {
-	// Load .env explicitly and override existing env vars.
 	_ = godotenv.Overload(".env")
 	if dsn := os.Getenv("DATABASE_URL"); dsn != "" {
 		db, err := storage.Open(context.Background(), dsn)
@@ -24,18 +26,52 @@ func main() {
 		}
 		defer db.Close()
 		repo := storage.NewDuelRepo(db)
+
+		if err := repo.EnsureAIPhraseTable(context.Background()); err != nil {
+			log.Printf("Warning: failed to create ai_phrases table: %v", err)
+		}
+
 		ws.SetRepo(repo)
 		server.SetRepo(repo)
 		log.Println("DB enabled")
 		log.Println("DB URL (redacted):", redactDSN(dsn))
+
+		if apiKey := os.Getenv("OPENROUTER_API_KEY"); apiKey != "" {
+			log.Println("OpenRouter API key configured")
+		} else {
+			log.Println("Warning: OPENROUTER_API_KEY not set, AI generation disabled")
+		}
 	} else {
 		log.Println("DB disabled")
 	}
 
 	r := server.NewRouter()
 
-	log.Println("Server started on :8080")
-	log.Fatal(http.ListenAndServe(":8080", r))
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: r,
+	}
+
+	go func() {
+		log.Println("Server started on :8080")
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("ListenAndServe error: %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("Server forced to shutdown: %v", err)
+	}
+
+	log.Println("Server exited")
 }
 
 func redactDSN(dsn string) string {

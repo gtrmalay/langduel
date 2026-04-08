@@ -17,6 +17,22 @@ export default defineConfig({
 			'/me': {
 				target: 'http://localhost:8080',
 				changeOrigin: true
+			},
+			'/duels': {
+				target: 'http://localhost:8080',
+				changeOrigin: true
+			},
+			'/analysis': {
+				target: 'http://localhost:8080',
+				changeOrigin: true
+			},
+			'/api': {
+				target: 'http://localhost:8080',
+				changeOrigin: true
+			},
+			'/api/leaderboard': {
+				target: 'http://localhost:8080',
+				changeOrigin: true
 			}
 		}
 	}

@@ -1,25 +1,44 @@
 package ws
 
 import (
+	"sync"
+	"time"
+
 	"github.com/gorilla/websocket"
 )
 
 type Client struct {
-	// Через неё читаем входящие сообщения и отправляем ответы.
-	conn *websocket.Conn
-
-	// Hub кладёт сообщения сюда, а writePump отправляет их в сокет.
-	// Буфер нужен, чтобы медленный клиент не блокировал весь сервер.
-	send chan []byte
-
-	// Нужен для регистрации, удаления клиента и рассылки сообщений.
-	hub  *Hub
-
-	// displayName реальное имя для игры/UI.
+	conn        *websocket.Conn
+	send        chan []byte
+	hub         *Hub
 	displayName string
+	authUserID  string
+	roomID      string
 
-	// authUserID UUID из JWT (ид в БД).
-	authUserID string
+	mu          sync.Mutex
+	lastMsgTime time.Time
+	msgCount    int
+}
 
-	roomID string
+const (
+	rateLimitWindow  = 1 * time.Second
+	rateLimitMaxMsgs = 10
+)
+
+func (c *Client) checkRateLimit() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	now := time.Now()
+	if now.Sub(c.lastMsgTime) > rateLimitWindow {
+		c.lastMsgTime = now
+		c.msgCount = 1
+		return true
+	}
+
+	c.msgCount++
+	if c.msgCount > rateLimitMaxMsgs {
+		return false
+	}
+	return true
 }

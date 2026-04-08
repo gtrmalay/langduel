@@ -9,10 +9,8 @@
   $: playerA = $duel.playerA || '';
   $: playerB = $duel.playerB || '';
   $: isPlayerA = currentUser && playerA === currentUser;
-  $: myAvatarEmoji = duel.getAvatarEmoji($duel.userAvatar || 'default');
-  $: opponentAvatarEmoji = duel.getAvatarEmoji($duel.opponentAvatar || 'default');
-  $: playerAEmoji = isPlayerA ? myAvatarEmoji : opponentAvatarEmoji;
-  $: playerBEmoji = isPlayerA ? opponentAvatarEmoji : myAvatarEmoji;
+  $: playerAAvatar = isPlayerA ? ($duel.userAvatar || 'default') : ($duel.opponentAvatar || 'default');
+  $: playerBAvatar = isPlayerA ? ($duel.opponentAvatar || 'default') : ($duel.userAvatar || 'default');
 
   onMount(() => {
     duel.init();
@@ -28,8 +26,8 @@
   <BattleView
     playerA={playerA}
     playerB={playerB}
-    playerAEmoji={playerAEmoji}
-    playerBEmoji={playerBEmoji}
+    playerAEmoji={playerAAvatar}
+    playerBEmoji={playerBAvatar}
     hp={$duel.hp}
     promptText={$duel.promptText}
     timerText={$duel.timerText}
@@ -44,6 +42,8 @@
     gameOverOpen={$duel.gameOverOpen}
     gameOverText={$duel.gameOverText}
     gameOverHP={$duel.gameOverHP}
+    gameOverReason={$duel.gameOverReason}
+    duelId={$duel.currentDuelId || ''}
     onSend={() => {
       duel.sendAnswer(answer);
       answer = '';

@@ -5,6 +5,11 @@
   import { _ } from 'svelte-i18n';
 
   let activeTab = 'create';
+  let generatingPhrases = false;
+  let phrasesGenerated = false;
+
+  let customTopic = '';
+  let useCustomTopic = false;
 
   $: topics = [
     { value: 'default', label: $_('topics.default') },
@@ -12,13 +17,19 @@
     { value: 'travel', label: $_('topics.travel') },
     { value: 'food', label: $_('topics.food') },
     { value: 'movies', label: $_('topics.movies') },
-    { value: 'sports', label: $_('topics.sports') }
+    { value: 'sports', label: $_('topics.sports') },
+    { value: 'custom', label: '🎯 Custom...' }
   ];
 
   $: difficulties = [
     { value: 'beginner', label: $_('difficulty.beginner') },
     { value: 'intermediate', label: $_('difficulty.intermediate') },
     { value: 'advanced', label: $_('difficulty.advanced') }
+  ];
+
+  $: languages = [
+    { value: 'en-ru', label: '🇬🇧 EN → RU 🇷🇺' },
+    { value: 'ru-en', label: '🇷🇺 RU → EN 🇬🇧' }
   ];
 
   onMount(() => {
@@ -38,6 +49,28 @@
   function handleTab(tab) {
     activeTab = tab;
     duel.setFlowMode(tab);
+  }
+
+  async function handleGeneratePhrases() {
+    duel.ensureRoomId();
+    const room = $duel.createRoom;
+    const difficulty = $duel.createDifficulty;
+    const lang = $duel.createLang;
+    
+    let topic = $duel.createTopic;
+    if (topic === 'custom') {
+      topic = customTopic.trim() || 'custom conversation';
+    }
+    
+    generatingPhrases = true;
+    phrasesGenerated = false;
+    
+    const success = await duel.generatePhrases(room, topic, difficulty, lang);
+    
+    generatingPhrases = false;
+    if (success) {
+      phrasesGenerated = true;
+    }
   }
 </script>
 
@@ -78,6 +111,15 @@
               <option value={topic.value}>{topic.label}</option>
             {/each}
           </select>
+          {#if $duel.createTopic === 'custom'}
+            <input 
+              type="text"
+              class="custom-topic-input"
+              placeholder="Enter your topic..."
+              bind:value={customTopic}
+              maxlength="100"
+            />
+          {/if}
         </div>
         
         <div class="form-group">
@@ -95,6 +137,19 @@
       </div>
 
       <div class="form-group">
+        <label for="language">Direction</label>
+        <select 
+          id="language"
+          value={$duel.createLang}
+          on:change={(e) => duel.setField('createLang', e.target.value)}
+        >
+          {#each languages as lang}
+            <option value={lang.value}>{lang.label}</option>
+          {/each}
+        </select>
+      </div>
+
+      <div class="form-group">
         <label for="room-id">{$_('play.room')}</label>
         <div class="room-input">
           <input 
@@ -103,6 +158,8 @@
             placeholder="room-xxxxx"
             value={$duel.createRoom}
             on:input={(e) => duel.setField('createRoom', e.target.value)}
+            maxlength="50"
+            pattern="[a-zA-Z0-9][a-zA-Z0-9\-]*"
           />
           <button class="gen-btn" on:click={() => duel.ensureRoomId()}>GEN</button>
         </div>
@@ -116,6 +173,8 @@
           placeholder="Guest-xxxx"
           value={$duel.createUser}
           on:input={(e) => duel.setField('createUser', e.target.value)}
+          maxlength="30"
+          pattern="[a-zA-Z][a-zA-Z0-9_\-]*"
         />
       </div>
 
@@ -135,6 +194,26 @@
         <div class="note">{$duel.createCopyNote}</div>
       {/if}
 
+      <div class="generate-section">
+        <button 
+          class="generate-btn" 
+          on:click={handleGeneratePhrases}
+          disabled={generatingPhrases || phrasesGenerated || !$duel.createRoom}
+        >
+          {#if generatingPhrases}
+            <span class="spinner"></span>
+            GENERATING...
+          {:else if phrasesGenerated}
+            ✓ PHRASES READY
+          {:else}
+            ⚡ GENERATE PHRASES (AI)
+          {/if}
+        </button>
+        {#if phrasesGenerated}
+          <span class="gen-note">20 phrases ready for your duel!</span>
+        {/if}
+      </div>
+
       <button class="action-btn" on:click={() => duel.createAndConnect()}>
         {$_('play.createRoom').toUpperCase()}
       </button>
@@ -148,6 +227,8 @@
           placeholder={$_('play.enterRoom')}
           value={$duel.joinRoom}
           on:input={(e) => duel.setField('joinRoom', e.target.value)}
+          maxlength="50"
+          pattern="[a-zA-Z0-9][a-zA-Z0-9\-]*"
         />
       </div>
 
@@ -159,6 +240,8 @@
           placeholder="Guest-xxxx"
           value={$duel.joinUser}
           on:input={(e) => duel.setField('joinUser', e.target.value)}
+          maxlength="30"
+          pattern="[a-zA-Z][a-zA-Z0-9_\-]*"
         />
       </div>
 
@@ -262,6 +345,10 @@
     gap: 8px;
   }
 
+  .custom-topic-input {
+    margin-top: 8px;
+  }
+
   label {
     font-size: 11px;
     color: var(--muted);
@@ -360,6 +447,66 @@
     font-size: 12px;
     color: var(--accent);
     text-align: center;
+  }
+
+  .generate-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .generate-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 14px 20px;
+    border-radius: 10px;
+    border: 1px solid var(--accent-2);
+    background: rgba(246, 193, 68, 0.15);
+    color: var(--accent-2);
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .generate-btn:hover:not(:disabled) {
+    background: rgba(246, 193, 68, 0.25);
+    box-shadow: 0 0 15px rgba(246, 193, 68, 0.3);
+  }
+
+  .generate-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .generate-btn:disabled[disabled="false"] {
+    border-color: var(--accent);
+    background: rgba(37, 244, 183, 0.2);
+    color: var(--accent);
+  }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid transparent;
+    border-top-color: var(--accent-2);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .gen-note {
+    font-size: 11px;
+    color: var(--accent);
   }
 
   .action-btn {

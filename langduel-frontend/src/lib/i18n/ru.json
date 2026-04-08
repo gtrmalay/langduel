@@ -74,7 +74,10 @@
     "nextTime": "В СЛЕДУЮЩИЙ РАЗ!",
     "almost": "ПОЧТИ!",
     "playAgain": "ИГРАТЬ СНОВА",
-    "home": "НА ГЛАВНУЮ"
+    "home": "НА ГЛАВНУЮ",
+    "duelAnalysis": "АНАЛИЗ ДУЭЛИ",
+    "viewAnalysis": "АНАЛИЗ",
+    "close": "ЗАКРЫТЬ"
   },
   "profile": {
     "stats": "СТАТИСТИКА",
@@ -178,5 +181,15 @@
     "expert": "Эксперт",
     "master": "Мастер",
     "struggler": "Лузер"
+  },
+  "shop": {
+    "title": "Магазин аватарок",
+    "owned": "Куплено",
+    "locked": "Заблокировано",
+    "buy": "Купить",
+    "buyFor": "Купить за {price}",
+    "notEnoughCoins": "Недостаточно монет!",
+    "purchaseSuccess": "Аватарка куплена!",
+    "select": "Выбрать"
   }
 }

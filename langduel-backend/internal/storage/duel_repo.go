@@ -2,9 +2,12 @@ package storage
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"log"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -22,10 +25,13 @@ func NewDuelRepo(db *DB) *DuelRepo {
 }
 
 type User struct {
-	ID       string
-	Username string
-	IsGuest  bool
-	Avatar   string
+	ID              string
+	Username        string
+	IsGuest         bool
+	Avatar          string
+	Coins           int
+	WinStreak       int
+	UnlockedAvatars []string
 }
 
 type Duel struct {
@@ -83,32 +89,93 @@ func (r *DuelRepo) CreateGuestUser(ctx context.Context, username string, ttlHour
 
 func (r *DuelRepo) GetUserByUsername(ctx context.Context, username string) (*User, error) {
 	row := r.db.Pool.QueryRow(ctx,
-		`SELECT user_id, username, is_guest, COALESCE(avatar, 'default') FROM users WHERE username = $1`,
+		`SELECT user_id, username, is_guest, COALESCE(avatar, 'default'), 
+		 COALESCE(coins, 0), COALESCE(win_streak, 0), COALESCE(unlocked_avatars, '["default"]')
+		 FROM users WHERE username = $1`,
 		username,
 	)
 	var u User
-	if err := row.Scan(&u.ID, &u.Username, &u.IsGuest, &u.Avatar); err != nil {
+	var unlockedStr string
+	if err := row.Scan(&u.ID, &u.Username, &u.IsGuest, &u.Avatar, &u.Coins, &u.WinStreak, &unlockedStr); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
+	}
+	if err := json.Unmarshal([]byte(unlockedStr), &u.UnlockedAvatars); err != nil {
+		u.UnlockedAvatars = []string{"default"}
 	}
 	return &u, nil
 }
 
 func (r *DuelRepo) GetUserByID(ctx context.Context, userID string) (*User, error) {
 	row := r.db.Pool.QueryRow(ctx,
-		`SELECT user_id, username, is_guest, COALESCE(avatar, 'default') FROM users WHERE user_id = $1`,
+		`SELECT user_id, username, is_guest, COALESCE(avatar, 'default'), 
+		 COALESCE(coins, 0), COALESCE(win_streak, 0), COALESCE(unlocked_avatars, '["default"]')
+		 FROM users WHERE user_id = $1`,
 		userID,
 	)
 	var u User
-	if err := row.Scan(&u.ID, &u.Username, &u.IsGuest, &u.Avatar); err != nil {
+	var unlockedStr string
+	if err := row.Scan(&u.ID, &u.Username, &u.IsGuest, &u.Avatar, &u.Coins, &u.WinStreak, &unlockedStr); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
+	if err := json.Unmarshal([]byte(unlockedStr), &u.UnlockedAvatars); err != nil {
+		u.UnlockedAvatars = []string{"default"}
+	}
 	return &u, nil
+}
+
+func (r *DuelRepo) BuyAvatar(ctx context.Context, userID, avatarID string, price int) error {
+	user, err := r.GetUserByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	if user.Coins < price {
+		return errors.New("not enough coins")
+	}
+
+	for _, a := range user.UnlockedAvatars {
+		if a == avatarID {
+			return errors.New("avatar already unlocked")
+		}
+	}
+
+	unlocked := append(user.UnlockedAvatars, avatarID)
+	unlockedJSON, _ := json.Marshal(unlocked)
+
+	_, err = r.db.Pool.Exec(ctx,
+		`UPDATE users SET coins = coins - $1, unlocked_avatars = $2 WHERE user_id = $3`,
+		price, string(unlockedJSON), userID,
+	)
+	return err
+}
+
+func (r *DuelRepo) AddCoins(ctx context.Context, userID string, amount int) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE users SET coins = coins + $1 WHERE user_id = $2`,
+		amount, userID,
+	)
+	return err
+}
+
+func (r *DuelRepo) UpdateWinStreak(ctx context.Context, userID string, won bool) error {
+	if won {
+		_, err := r.db.Pool.Exec(ctx,
+			`UPDATE users SET win_streak = win_streak + 1 WHERE user_id = $1`,
+			userID,
+		)
+		return err
+	}
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE users SET win_streak = 0 WHERE user_id = $1`,
+		userID,
+	)
+	return err
 }
 
 type AuthUser struct {
@@ -129,6 +196,23 @@ func (r *DuelRepo) CreateUser(ctx context.Context, username, email, passwordHash
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return nil, errors.New("user already exists")
+		}
+		return nil, err
+	}
+	return &u, nil
+}
+
+func (r *DuelRepo) ConvertGuestToUser(ctx context.Context, username, email, passwordHash string) (*User, error) {
+	row := r.db.Pool.QueryRow(ctx,
+		`UPDATE users SET email = $2, password_hash = $3, is_guest = false, guest_expires_at = NULL
+         WHERE username = $1 AND is_guest = true
+         RETURNING user_id, username`,
+		username, email, passwordHash,
+	)
+	var u User
+	if err := row.Scan(&u.ID, &u.Username); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
 		}
 		return nil, err
 	}
@@ -228,7 +312,7 @@ func (r *DuelRepo) EnsureParticipant(ctx context.Context, duelID, userID string,
 	return &Participant{ID: id, DuelID: duelID, UserID: userID}, nil
 }
 
-func (r *DuelRepo) CreateRound(ctx context.Context, duelID string, roundNumber int, phraseText, lang, topic string, timeLimitMs int) (*Round, error) {
+func (r *DuelRepo) CreateRound(ctx context.Context, duelID string, roundNumber int, phraseText, correctAnswer, lang, topic string, timeLimitMs int) (*Round, error) {
 	var phraseID string
 	row := r.db.Pool.QueryRow(ctx,
 		`SELECT phrase_id FROM phrases WHERE text = $1 AND lang = $2 AND topic = $3 LIMIT 1`,
@@ -249,11 +333,11 @@ func (r *DuelRepo) CreateRound(ctx context.Context, duelID string, roundNumber i
 	}
 
 	row = r.db.Pool.QueryRow(ctx,
-		`INSERT INTO game_rounds (duel_id, round_number, phrase_id, time_limit_ms)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (duel_id, round_number) DO UPDATE SET phrase_id = EXCLUDED.phrase_id
+		`INSERT INTO game_rounds (duel_id, round_number, phrase_id, correct_answer, time_limit_ms)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (duel_id, round_number) DO UPDATE SET phrase_id = EXCLUDED.phrase_id, correct_answer = EXCLUDED.correct_answer
          RETURNING round_id`,
-		duelID, roundNumber, phraseID, timeLimitMs,
+		duelID, roundNumber, phraseID, correctAnswer, timeLimitMs,
 	)
 	var roundID string
 	if err := row.Scan(&roundID); err != nil {
@@ -451,6 +535,7 @@ type LeaderboardEntry struct {
 	Username string `json:"username"`
 	Avatar   string `json:"avatar"`
 	Elo      int    `json:"elo"`
+	RankTier string `json:"rank_tier"`
 	RankName string `json:"rank_name"`
 	Games    int    `json:"games_played"`
 }
@@ -523,7 +608,20 @@ func (r *DuelRepo) UpdateRating(ctx context.Context, winnerID, loserID string) e
 	if err := r.updateRankForUser(ctx, winnerID); err != nil {
 		return err
 	}
-	return r.updateRankForUser(ctx, loserID)
+	if err := r.updateRankForUser(ctx, loserID); err != nil {
+		return err
+	}
+
+	// Award coins for winner
+	winCoins := 10
+	_, err = r.db.Pool.Exec(ctx, `
+		UPDATE users SET coins = COALESCE(coins, 0) + $1 WHERE user_id = $2`,
+		winCoins, winnerID)
+	if err != nil {
+		log.Printf("Award coins error: %v", err)
+	}
+
+	return nil
 }
 
 func (r *DuelRepo) updateRankForUser(ctx context.Context, userID string) error {
@@ -612,7 +710,7 @@ func (r *DuelRepo) GetLeaderboard(ctx context.Context, limit int) ([]Leaderboard
 	for rows.Next() {
 		var entry LeaderboardEntry
 		if err := rows.Scan(&entry.UserID, &entry.Username, &entry.Avatar,
-			&entry.Elo, &entry.Rank, &entry.Games, &entry.RankName); err != nil {
+			&entry.Elo, &entry.RankTier, &entry.Games, &entry.RankName); err != nil {
 			return nil, err
 		}
 		entry.Rank = rank
@@ -757,19 +855,6 @@ func (r *DuelRepo) AwardCoins(ctx context.Context, userID string, amount int) er
 func (r *DuelRepo) AwardCoinsForUnlockedAchievements(ctx context.Context, userID string) (int, error) {
 	log.Printf("AwardCoinsForUnlockedAchievements called for user: %s", userID)
 
-	// Ensure columns exist (ignore errors - will be fixed by migration)
-	_, _ = r.db.Pool.Exec(ctx, `ALTER TABLE user_ratings ADD COLUMN IF NOT EXISTS coins INT DEFAULT 0`)
-	_, _ = r.db.Pool.Exec(ctx, `ALTER TABLE achievements ADD COLUMN IF NOT EXISTS coins_reward INT DEFAULT 0`)
-
-	// Ensure user_ratings row exists
-	_, err := r.db.Pool.Exec(ctx, `
-		INSERT INTO user_ratings (user_id, elo, rank, coins)
-		VALUES ($1, 1000, 'newbie', 0)
-		ON CONFLICT (user_id) DO NOTHING`, userID)
-	if err != nil {
-		log.Printf("Insert user_ratings error: %v", err)
-	}
-
 	// Sync achievements based on user stats first
 	synced, err := r.SyncAchievementsFromStats(ctx, userID)
 	if err != nil {
@@ -804,14 +889,15 @@ func (r *DuelRepo) AwardCoinsForUnlockedAchievements(ctx context.Context, userID
 	}
 	log.Printf("Calculated total coins: %d", totalCoins)
 
+	// Update coins in users table (where BuyAvatar reads from)
 	if totalCoins > 0 {
 		_, err = r.db.Pool.Exec(ctx, `
-			UPDATE user_ratings SET coins = COALESCE(coins, 0) + $1 WHERE user_id = $2`, totalCoins, userID)
+			UPDATE users SET coins = COALESCE(coins, 0) + $1 WHERE user_id = $2`, totalCoins, userID)
 		if err != nil {
 			log.Printf("Update coins error: %v", err)
 			return 0, err
 		}
-		log.Printf("Successfully awarded %d coins to user %s", totalCoins, userID)
+		log.Printf("Successfully awarded %d coins to user %s in users table", totalCoins, userID)
 	}
 
 	return totalCoins, nil
@@ -1026,4 +1112,450 @@ func (r *DuelRepo) CheckAndUnlockAchievements(ctx context.Context, userID string
 	}
 
 	return unlocked, nil
+}
+
+// AIPhrase represents an AI-generated phrase
+type AIPhrase struct {
+	ID         string
+	DuelID     sql.NullString
+	Prompt     string
+	Answers    []string
+	Topic      string
+	Difficulty string
+	LangFrom   string
+	LangTo     string
+	Used       bool
+	CreatedAt  string
+}
+
+// SaveAIPhrase saves an AI-generated phrase
+func (r *DuelRepo) SaveAIPhrase(ctx context.Context, duelID, roomCode, prompt string, answers []string, topic, difficulty, langFrom, langTo string) error {
+	// Use NULL if duelID is empty
+	if duelID == "" {
+		_, err := r.db.Pool.Exec(ctx, `
+			INSERT INTO ai_phrases (room_code, prompt, answers, topic, difficulty, lang_from, lang_to)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			roomCode, prompt, answers, topic, difficulty, langFrom, langTo)
+		return err
+	}
+	_, err := r.db.Pool.Exec(ctx, `
+		INSERT INTO ai_phrases (duel_id, room_code, prompt, answers, topic, difficulty, lang_from, lang_to)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		duelID, roomCode, prompt, answers, topic, difficulty, langFrom, langTo)
+	return err
+}
+
+// GetAIPhrases returns AI-generated phrases for a duel or room
+func (r *DuelRepo) GetAIPhrases(ctx context.Context, duelID, roomCode string) ([]AIPhrase, error) {
+	var rows pgx.Rows
+	var err error
+
+	// If duelID is empty, only search by room_code
+	if duelID == "" {
+		query := `
+			SELECT phrase_id, duel_id, prompt, answers, topic, difficulty, lang_from, lang_to, used, created_at
+			FROM ai_phrases
+			WHERE used = false AND room_code = $1
+			ORDER BY RANDOM()
+			LIMIT 20`
+		rows, err = r.db.Pool.Query(ctx, query, roomCode)
+	} else {
+		query := `
+			SELECT phrase_id, duel_id, prompt, answers, topic, difficulty, lang_from, lang_to, used, created_at
+			FROM ai_phrases
+			WHERE used = false AND (duel_id = $1 OR room_code = $2)
+			ORDER BY RANDOM()
+			LIMIT 20`
+		rows, err = r.db.Pool.Query(ctx, query, duelID, roomCode)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var phrases []AIPhrase
+	seenPrompts := make(map[string]bool)
+	for rows.Next() {
+		var p AIPhrase
+		var createdAt time.Time
+		if err := rows.Scan(&p.ID, &p.DuelID, &p.Prompt, &p.Answers, &p.Topic, &p.Difficulty,
+			&p.LangFrom, &p.LangTo, &p.Used, &createdAt); err != nil {
+			return nil, err
+		}
+		p.CreatedAt = createdAt.Format(time.RFC3339)
+		promptLower := strings.ToLower(strings.TrimSpace(p.Prompt))
+		if !seenPrompts[promptLower] {
+			seenPrompts[promptLower] = true
+			phrases = append(phrases, p)
+		}
+	}
+	return phrases, rows.Err()
+}
+
+// MarkAIPhraseUsed marks an AI phrase as used
+func (r *DuelRepo) MarkAIPhraseUsed(ctx context.Context, phraseID string) error {
+	_, err := r.db.Pool.Exec(ctx, `UPDATE ai_phrases SET used = true WHERE phrase_id = $1`, phraseID)
+	return err
+}
+
+// EnsureAIPhraseTable creates the ai_phrases table if not exists
+func (r *DuelRepo) EnsureAIPhraseTable(ctx context.Context) error {
+	_, err := r.db.Pool.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS ai_phrases (
+			phrase_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			duel_id UUID REFERENCES duels(duel_id) ON DELETE CASCADE,
+			prompt VARCHAR(255) NOT NULL,
+			answers TEXT[] NOT NULL,
+			topic VARCHAR(30) NOT NULL,
+			difficulty VARCHAR(20) NOT NULL DEFAULT 'intermediate',
+			lang_from VARCHAR(10) NOT NULL,
+			lang_to VARCHAR(10) NOT NULL,
+			used BOOLEAN DEFAULT FALSE,
+			created_at TIMESTAMPTZ DEFAULT NOW()
+		)
+	`)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.Pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_ai_phrases_duel_id ON ai_phrases(duel_id)`)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.Pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_ai_phrases_used ON ai_phrases(used)`)
+	return err
+}
+
+// DuelDetail represents detailed duel information for analysis
+type DuelDetail struct {
+	DuelID       string              `json:"duel_id"`
+	RoomCode     string              `json:"room_code"`
+	Status       string              `json:"status"`
+	WinnerID     string              `json:"winner_user_id"`
+	Theme        string              `json:"theme"`
+	Difficulty   string              `json:"difficulty"`
+	LangFrom     string              `json:"lang_from"`
+	LangTo       string              `json:"lang_to"`
+	StartedAt    string              `json:"started_at"`
+	FinishedAt   string              `json:"finished_at"`
+	Participants []ParticipantDetail `json:"participants"`
+	Rounds       []RoundDetail       `json:"rounds"`
+}
+
+// ParticipantDetail represents player stats in a duel
+type ParticipantDetail struct {
+	UserID       string `json:"user_id"`
+	Username     string `json:"username"`
+	Avatar       string `json:"avatar"`
+	FinalHP      int    `json:"final_hp"`
+	CorrectCount int    `json:"correct_count"`
+	WrongCount   int    `json:"wrong_count"`
+	TotalDamage  int    `json:"total_damage"`
+	IsWinner     bool   `json:"is_winner"`
+}
+
+// RoundDetail represents a single round with answers
+type RoundDetail struct {
+	RoundNumber int            `json:"round_number"`
+	Phrase      string         `json:"phrase"`
+	LangFrom    string         `json:"lang_from"`
+	LangTo      string         `json:"lang_to"`
+	Answers     []AnswerDetail `json:"answers"`
+}
+
+// AnswerDetail represents a player's answer in a round
+type AnswerDetail struct {
+	UserID       string `json:"user_id"`
+	Username     string `json:"username"`
+	Answer       string `json:"answer"`
+	IsCorrect    bool   `json:"is_correct"`
+	ResponseTime int    `json:"response_time_ms"`
+	DamageDealt  int    `json:"damage_dealt"`
+}
+
+// GetDuelDetails returns full duel analysis with rounds and answers
+func (r *DuelRepo) GetDuelDetails(ctx context.Context, duelID, userID string) (*DuelDetail, error) {
+	// Get duel info
+	log.Printf("GetDuelDetails: duelID=%s userID=%s", duelID, userID)
+	row := r.db.Pool.QueryRow(ctx, `
+		SELECT d.duel_id, d.room_code, d.status, COALESCE(d.winner_user_id, ''), d.theme, d.difficulty,
+			   d.language_from, d.language_to, d.started_at, d.finished_at
+		FROM duels d
+		WHERE d.duel_id = $1`, duelID)
+
+	var detail DuelDetail
+	var startedAt, finishedAt *time.Time
+	if err := row.Scan(&detail.DuelID, &detail.RoomCode, &detail.Status, &detail.WinnerID,
+		&detail.Theme, &detail.Difficulty, &detail.LangFrom, &detail.LangTo, &startedAt, &finishedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	if startedAt != nil {
+		detail.StartedAt = startedAt.Format(time.RFC3339)
+	}
+	if finishedAt != nil {
+		detail.FinishedAt = finishedAt.Format(time.RFC3339)
+	}
+
+	// Get participants with stats
+	rows, err := r.db.Pool.Query(ctx, `
+		SELECT dp.user_id, COALESCE(u.username, ''), COALESCE(u.avatar, 'default'), 
+			   COALESCE(dp.final_hp, 0)
+		FROM duel_participants dp
+		JOIN users u ON u.user_id = dp.user_id
+		WHERE dp.duel_id = $1`, duelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	detail.Participants = []ParticipantDetail{}
+	for rows.Next() {
+		var p ParticipantDetail
+		if err := rows.Scan(&p.UserID, &p.Username, &p.Avatar, &p.FinalHP); err != nil {
+			return nil, err
+		}
+		if p.UserID == "" {
+			continue
+		}
+		p.IsWinner = p.UserID == detail.WinnerID
+		detail.Participants = append(detail.Participants, p)
+	}
+
+	// Get rounds with phrases
+	roundRows, err := r.db.Pool.Query(ctx, `
+		SELECT COALESCE(gr.round_id, ''::uuid)::text, COALESCE(gr.round_number, 0), COALESCE(p.text, '')
+		FROM game_rounds gr
+		LEFT JOIN phrases p ON p.phrase_id = gr.phrase_id
+		WHERE gr.duel_id = $1
+		ORDER BY gr.round_number`, duelID)
+	if err != nil {
+		return nil, err
+	}
+	defer roundRows.Close()
+
+	roundMap := make(map[string]RoundDetail)
+	for roundRows.Next() {
+		var roundID string
+		var rd RoundDetail
+		if err := roundRows.Scan(&roundID, &rd.RoundNumber, &rd.Phrase); err != nil {
+			return nil, err
+		}
+		if roundID == "" {
+			continue
+		}
+		rd.LangFrom = detail.LangFrom
+		rd.LangTo = detail.LangTo
+		rd.Answers = []AnswerDetail{}
+		roundMap[roundID] = rd
+	}
+
+	// Get answers for all rounds
+	for roundID, rd := range roundMap {
+		ansRows, err := r.db.Pool.Query(ctx, `
+			SELECT dp.user_id, COALESCE(u.username, ''), COALESCE(pa.translation_text, ''), pa.is_correct,
+				   COALESCE(pa.response_time_ms, 0), COALESCE(pa.damage_dealt, 0)
+			FROM player_answers pa
+			JOIN duel_participants dp ON dp.participant_id = pa.participant_id
+			JOIN users u ON u.user_id = dp.user_id
+			WHERE pa.round_id = $1
+			ORDER BY pa.response_time_ms`, roundID)
+		if err != nil {
+			return nil, err
+		}
+
+		for ansRows.Next() {
+			var ad AnswerDetail
+			if err := ansRows.Scan(&ad.UserID, &ad.Username, &ad.Answer, &ad.IsCorrect,
+				&ad.ResponseTime, &ad.DamageDealt); err != nil {
+				ansRows.Close()
+				return nil, err
+			}
+			if ad.UserID == "" {
+				continue
+			}
+			rd.Answers = append(rd.Answers, ad)
+			roundMap[roundID] = rd
+
+			// Update participant stats
+			for i := range detail.Participants {
+				if detail.Participants[i].UserID == ad.UserID {
+					if ad.IsCorrect {
+						detail.Participants[i].CorrectCount++
+					} else {
+						detail.Participants[i].WrongCount++
+					}
+					detail.Participants[i].TotalDamage += ad.DamageDealt
+				}
+			}
+		}
+		ansRows.Close()
+	}
+
+	detail.Rounds = make([]RoundDetail, 0, len(roundMap))
+	for _, rd := range roundMap {
+		detail.Rounds = append(detail.Rounds, rd)
+	}
+
+	return &detail, nil
+}
+
+// GetDuelByID returns duel by ID
+func (r *DuelRepo) GetDuelByID(ctx context.Context, duelID string) (*Duel, error) {
+	row := r.db.Pool.QueryRow(ctx,
+		`SELECT duel_id, room_code, theme, difficulty, language_from, language_to, status
+         FROM duels WHERE duel_id = $1`,
+		duelID,
+	)
+	var d Duel
+	if err := row.Scan(&d.ID, &d.RoomCode, &d.Theme, &d.Difficulty, &d.LangFrom, &d.LangTo, &d.Status); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &d, nil
+}
+
+// DuelAnalysis represents a quick duel analysis for display
+type DuelAnalysis struct {
+	DuelID       string               `json:"duel_id"`
+	Participants []ParticipantSummary `json:"participants"`
+	Rounds       []RoundAnalysis      `json:"rounds"`
+}
+
+type ParticipantSummary struct {
+	UserID   string `json:"user_id"`
+	Username string `json:"username"`
+	Correct  int    `json:"correct"`
+	Wrong    int    `json:"wrong"`
+}
+
+type RoundAnalysis struct {
+	RoundNumber   int             `json:"round_number"`
+	Phrase        string          `json:"phrase"`
+	CorrectAnswer string          `json:"correct_answer"`
+	Answers       []AnswerSummary `json:"answers"`
+}
+
+type AnswerSummary struct {
+	UserID    string `json:"user_id"`
+	Username  string `json:"username"`
+	Answer    string `json:"answer"`
+	IsCorrect bool   `json:"is_correct"`
+}
+
+// GetDuelAnalysis returns a simplified analysis for display after game
+func (r *DuelRepo) GetDuelAnalysis(ctx context.Context, duelID string) (*DuelAnalysis, error) {
+	analysis := &DuelAnalysis{
+		DuelID:       duelID,
+		Participants: []ParticipantSummary{},
+		Rounds:       []RoundAnalysis{},
+	}
+
+	pRows, err := r.db.Pool.Query(ctx, `
+		SELECT dp.user_id, COALESCE(u.username, '')
+		FROM duel_participants dp
+		JOIN users u ON u.user_id = dp.user_id
+		WHERE dp.duel_id = $1`, duelID)
+	if err != nil {
+		return nil, err
+	}
+	defer pRows.Close()
+
+	participantMap := make(map[string]string)
+	for pRows.Next() {
+		var uid, username string
+		if err := pRows.Scan(&uid, &username); err != nil {
+			continue
+		}
+		analysis.Participants = append(analysis.Participants, ParticipantSummary{UserID: uid, Username: username})
+		participantMap[uid] = username
+	}
+
+	// Get rounds with phrases
+	rRows, err := r.db.Pool.Query(ctx, `
+		SELECT gr.round_id::text, COALESCE(gr.round_number, 0), COALESCE(p.text, ''), COALESCE(gr.correct_answer, '')
+		FROM game_rounds gr
+		LEFT JOIN phrases p ON p.phrase_id = gr.phrase_id
+		WHERE gr.duel_id = $1
+		ORDER BY gr.round_number`, duelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rRows.Close()
+
+	roundMap := make(map[string]RoundAnalysis)
+	for rRows.Next() {
+		var roundID string
+		var roundNum int
+		var phrase string
+		var correctAnswer string
+		if err := rRows.Scan(&roundID, &roundNum, &phrase, &correctAnswer); err != nil {
+			continue
+		}
+		if roundID == "" {
+			continue
+		}
+		roundMap[roundID] = RoundAnalysis{
+			RoundNumber:   roundNum,
+			Phrase:        phrase,
+			CorrectAnswer: correctAnswer,
+			Answers:       []AnswerSummary{},
+		}
+	}
+
+	// Get answers
+	for roundID := range roundMap {
+		aRows, err := r.db.Pool.Query(ctx, `
+			SELECT dp.user_id, COALESCE(u.username, ''), 
+				   COALESCE(pa.translation_text, ''), pa.is_correct
+			FROM player_answers pa
+			JOIN duel_participants dp ON dp.participant_id = pa.participant_id
+			JOIN users u ON u.user_id = dp.user_id
+			WHERE pa.round_id = $1
+			ORDER BY pa.response_time_ms`, roundID)
+		if err != nil {
+			continue
+		}
+
+		for aRows.Next() {
+			var uid, username, answer string
+			var isCorrect bool
+			if err := aRows.Scan(&uid, &username, &answer, &isCorrect); err != nil {
+				continue
+			}
+			if uid == "" {
+				continue
+			}
+			ra := roundMap[roundID]
+			ra.Answers = append(ra.Answers, AnswerSummary{
+				UserID:    uid,
+				Username:  username,
+				Answer:    answer,
+				IsCorrect: isCorrect,
+			})
+			roundMap[roundID] = ra
+
+			// Update participant stats
+			for i := range analysis.Participants {
+				if analysis.Participants[i].UserID == uid {
+					if isCorrect {
+						analysis.Participants[i].Correct++
+					} else {
+						analysis.Participants[i].Wrong++
+					}
+				}
+			}
+		}
+		aRows.Close()
+	}
+
+	for _, ra := range roundMap {
+		analysis.Rounds = append(analysis.Rounds, ra)
+	}
+
+	return analysis, nil
 }

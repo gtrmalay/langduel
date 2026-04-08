@@ -74,7 +74,10 @@
     "nextTime": "NEXT TIME!",
     "almost": "ALMOST!",
     "playAgain": "PLAY AGAIN",
-    "home": "HOME"
+    "home": "HOME",
+    "duelAnalysis": "DUEL ANALYSIS",
+    "viewAnalysis": "VIEW ANALYSIS",
+    "close": "CLOSE"
   },
   "profile": {
     "stats": "STATS",
@@ -178,5 +181,15 @@
     "expert": "Expert",
     "master": "Master",
     "struggler": "Struggler"
+  },
+  "shop": {
+    "title": "Avatar Shop",
+    "owned": "Owned",
+    "locked": "Locked",
+    "buy": "Buy",
+    "buyFor": "Buy for {price}",
+    "notEnoughCoins": "Not enough coins!",
+    "purchaseSuccess": "Avatar purchased!",
+    "select": "Select"
   }
 }

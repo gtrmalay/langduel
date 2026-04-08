@@ -37,6 +37,25 @@
 		* {
 			box-sizing: border-box;
 		}
+		::-webkit-scrollbar {
+			width: 8px;
+			height: 8px;
+		}
+		::-webkit-scrollbar-track {
+			background: var(--bg);
+			border-radius: 4px;
+		}
+		::-webkit-scrollbar-thumb {
+			background: var(--outline);
+			border-radius: 4px;
+		}
+		::-webkit-scrollbar-thumb:hover {
+			background: var(--muted);
+		}
+		* {
+			scrollbar-width: thin;
+			scrollbar-color: var(--outline) var(--bg);
+		}
 		html, body {
 			min-height: 100%;
 		}

@@ -135,6 +135,13 @@ func readPump(c *Client) {
 			continue
 		}
 
+		if msg.Type == "answer" || msg.Type == "join" {
+			if !c.checkRateLimit() {
+				sendError(c, msg.RoomID, "rate limit exceeded")
+				continue
+			}
+		}
+
 		switch msg.Type {
 		case "join":
 			// If JWT provided, trust it over client-sent user_id.
@@ -197,12 +204,56 @@ func handleJoin(c *Client, msg duel.Message) {
 		return
 	}
 
-	// If JWT provided, trust it over client-sent user_id.
+	if err := duel.ValidateRoomID(msg.RoomID); err != nil {
+		sendError(c, msg.RoomID, err.Error())
+		return
+	}
+
+	if err := duel.ValidateUsername(msg.UserID); err != nil {
+		sendError(c, msg.RoomID, err.Error())
+		return
+	}
+
+	if err := duel.ValidateDifficulty(msg.Difficulty); err != nil {
+		sendError(c, msg.RoomID, err.Error())
+		return
+	}
+
+	if err := duel.ValidateAvatar(msg.Avatar); err != nil {
+		sendError(c, msg.RoomID, err.Error())
+		return
+	}
+
+	if err := duel.ValidateLang(msg.Lang); err != nil {
+		sendError(c, msg.RoomID, err.Error())
+		return
+	}
+
+	if msg.Topic != "" && msg.Topic != "custom" {
+		if err := duel.ValidateTopic(msg.Topic); err != nil {
+			sendError(c, msg.RoomID, err.Error())
+			return
+		}
+	}
+
 	if c.displayName != "" {
 		msg.UserID = c.displayName
 	}
+
+	// Check if player already in room (might be reconnect)
 	if mgr.HasPlayer(msg.RoomID, msg.UserID) {
-		sendError(c, msg.RoomID, "user already in room")
+		// Return current room state for reconnect
+		events, err := mgr.GetRoomSnapshot(msg.RoomID, msg.UserID)
+		if err != nil {
+			sendError(c, msg.RoomID, err.Error())
+			return
+		}
+		c.displayName = msg.UserID
+		c.roomID = msg.RoomID
+		c.hub.register <- registration{client: c, roomID: msg.RoomID}
+		for _, ev := range events {
+			_ = c.conn.WriteJSON(ev)
+		}
 		return
 	}
 
@@ -288,10 +339,48 @@ func handleJoin(c *Client, msg duel.Message) {
 		roomUserID.mu.Unlock()
 	}
 
+	// Load AI phrases BEFORE joining the room
+	var aiPhrases []duel.AIPhraseData
+	if repo != nil {
+		ctx := context.Background()
+		log.Printf("Looking for AI phrases for room: %s", msg.RoomID)
+		phrases, err := repo.GetAIPhrases(ctx, "", msg.RoomID)
+		if err != nil {
+			log.Printf("GetAIPhrases error: %v", err)
+		} else if len(phrases) == 0 {
+			log.Printf("No AI phrases found for room %s", msg.RoomID)
+		} else {
+			log.Printf("Found %d AI phrases for room %s", len(phrases), msg.RoomID)
+			aiPhrases = make([]duel.AIPhraseData, len(phrases))
+			for i, p := range phrases {
+				aiPhrases[i] = duel.AIPhraseData{
+					Prompt:  p.Prompt,
+					Answers: p.Answers,
+				}
+			}
+		}
+	}
+
 	events, err := mgr.Join(msg.RoomID, msg.UserID, msg.Topic, msg.Difficulty, msg.Lang, msg.Avatar)
 	if err != nil {
 		sendError(c, msg.RoomID, err.Error())
 		return
+	}
+
+	// Set AI phrases after joining
+	if len(aiPhrases) > 0 {
+		mgr.SetAIPhrases(msg.RoomID, aiPhrases)
+		log.Printf("Set %d AI phrases for room %s", len(aiPhrases), msg.RoomID)
+	}
+
+	// set duel_id in room (must be after mgr.Join creates the room)
+	if repo != nil {
+		roomDuelID.mu.Lock()
+		duelID := roomDuelID.byRoom[msg.RoomID]
+		roomDuelID.mu.Unlock()
+		if duelID != "" {
+			mgr.SetDuelID(msg.RoomID, duelID)
+		}
 	}
 
 	c.displayName = msg.UserID
@@ -310,7 +399,7 @@ func handleJoin(c *Client, msg duel.Message) {
 					if err := repo.MarkDuelStarted(ctx, duelID); err != nil {
 						log.Printf("DB MarkDuelStarted error: %v", err)
 					}
-					rnd, err := repo.CreateRound(ctx, duelID, ev.Round, ev.Prompt, ev.Lang, ev.Topic, int(roundTimeout/time.Millisecond))
+					rnd, err := repo.CreateRound(ctx, duelID, ev.Round, ev.Prompt, ev.CorrectAnswer, ev.Lang, ev.Topic, int(roundTimeout/time.Millisecond))
 					if err != nil {
 						log.Printf("DB CreateRound error: %v", err)
 					} else {
@@ -335,10 +424,17 @@ func handleAnswer(c *Client, msg duel.Message) {
 		return
 	}
 
+	if err := duel.ValidateAnswer(msg.Answer); err != nil {
+		sendError(c, c.roomID, err.Error())
+		return
+	}
+
 	if c.displayName != "" {
 		msg.UserID = c.displayName
 	}
-	events, err := mgr.SubmitAnswer(c.roomID, msg.UserID, msg.Answer, msg.Speed)
+
+	sanitizedAnswer := duel.SanitizeAnswer(msg.Answer)
+	events, err := mgr.SubmitAnswer(c.roomID, msg.UserID, sanitizedAnswer, msg.Speed)
 	if err != nil {
 		sendError(c, c.roomID, err.Error())
 		return
@@ -356,7 +452,7 @@ func handleAnswer(c *Client, msg duel.Message) {
 					if err := repo.MarkDuelStarted(ctx, duelID); err != nil {
 						log.Printf("DB MarkDuelStarted error: %v", err)
 					}
-					rnd, err := repo.CreateRound(ctx, duelID, ev.Round, ev.Prompt, ev.Lang, ev.Topic, int(roundTimeout/time.Millisecond))
+					rnd, err := repo.CreateRound(ctx, duelID, ev.Round, ev.Prompt, ev.CorrectAnswer, ev.Lang, ev.Topic, int(roundTimeout/time.Millisecond))
 					if err != nil {
 						log.Printf("DB CreateRound error: %v", err)
 					} else {

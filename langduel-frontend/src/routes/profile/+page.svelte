@@ -5,21 +5,21 @@
   import { _ } from 'svelte-i18n';
 
   const avatars = [
-    { id: 'default', emoji: '?' },
-    { id: 'knight', emoji: '🛡️' },
-    { id: 'wizard', emoji: '🧙' },
-    { id: 'archer', emoji: '🏹' },
-    { id: 'dragon', emoji: '🐉' },
-    { id: 'skull', emoji: '💀' },
-    { id: 'fire', emoji: '🔥' },
-    { id: 'ice', emoji: '❄️' },
-    { id: 'lightning', emoji: '⚡' },
-    { id: 'sword', emoji: '⚔️' },
-    { id: 'shield', emoji: '🛡️' },
-    { id: 'potion', emoji: '🧪' },
-    { id: 'crown', emoji: '👑' },
-    { id: 'star', emoji: '⭐' },
-    { id: 'moon', emoji: '🌙' },
+    { id: 'default', emoji: '?', price: 0 },
+    { id: 'knight', emoji: '⚔️', price: 50 },
+    { id: 'wizard', emoji: '🧙', price: 75 },
+    { id: 'archer', emoji: '🏹', price: 75 },
+    { id: 'dragon', emoji: '🐉', price: 100 },
+    { id: 'skull', emoji: '💀', price: 50 },
+    { id: 'fire', emoji: '🔥', price: 60 },
+    { id: 'ice', emoji: '❄️', price: 60 },
+    { id: 'lightning', emoji: '⚡', price: 80 },
+    { id: 'sword', emoji: '🗡️', price: 50 },
+    { id: 'shield', emoji: '🛡️', price: 50 },
+    { id: 'potion', emoji: '🧪', price: 60 },
+    { id: 'crown', emoji: '👑', price: 150 },
+    { id: 'star', emoji: '⭐', price: 100 },
+    { id: 'moon', emoji: '🌙', price: 80 },
   ];
 
   const defaultAchievements = [
@@ -48,6 +48,7 @@
   let newUsername = '';
   let usernameError = '';
   let avatarError = '';
+  let avatarSuccess = '';
   let savingUsername = false;
   let savingAvatar = false;
   let showAllAchievements = false;
@@ -87,6 +88,12 @@
   $: wins = parseInt($duel.profileWins) || 0;
   $: games = parseInt($duel.profileDuels) || 0;
   $: streak = parseInt($duel.profileStreak) || 0;
+  $: userCoins = $duel.profileCoins || 0;
+  $: unlockedAvatars = $duel.unlockedAvatars || ['default'];
+  
+  function isAvatarUnlocked(avatarId) {
+    return unlockedAvatars.includes(avatarId);
+  }
   
   function checkLocallyUnlocked(achievementId, achWins, achGames, achStreak) {
     const req = achievementRequirements[achievementId];
@@ -153,13 +160,8 @@
   onMount(async () => {
     duel.init();
     if ($duel.authMode === 'auth') {
-      console.log('[Profile] Fetching user rating...');
       await duel.fetchUserRating();
-      console.log('[Profile] Fetching achievements...');
       await duel.fetchAchievements();
-      console.log('[Profile] Claiming coins...');
-      const result = await duel.claimCoins();
-      console.log('[Profile] Coins claimed:', result);
     }
   });
 
@@ -202,14 +204,39 @@
   }
 
   async function selectAvatar(avatarId) {
-    savingAvatar = true;
     avatarError = '';
+    avatarSuccess = '';
+    
+    const avatarData = avatars.find(a => a.id === avatarId);
+    if (!avatarData) return;
+    
+    if (!isAvatarUnlocked(avatarId)) {
+      if (userCoins < avatarData.price) {
+        avatarError = 'Недостаточно монет!';
+        return;
+      }
+      
+      savingAvatar = true;
+      const result = await duel.buyAvatar(avatarId);
+      savingAvatar = false;
+      
+      if (result.error) {
+        avatarError = result.error;
+        return;
+      }
+      
+      avatarSuccess = 'Аватарка куплена!';
+      await duel.fetchUserRating();
+    }
+    
+    savingAvatar = true;
     const result = await duel.updateAvatar(avatarId);
     savingAvatar = false;
     if (result.error) {
       avatarError = result.error;
     }
   }
+  
 </script>
 
 <div class="wrap">
@@ -408,26 +435,49 @@
 <!-- Avatar Modal -->
 {#if showAvatarModal}
   <div class="modal-overlay" on:click={() => showAvatarModal = false}>
-    <div class="modal-content" on:click|stopPropagation>
-      <h3 class="modal-title">🎭 {$_('profile.chooseAvatar')}</h3>
+    <div class="modal-content avatar-shop" on:click|stopPropagation>
+      <div class="shop-header">
+        <h3 class="modal-title">{$_('shop.title')}</h3>
+        <div class="shop-coins">
+          <span class="coin-icon">🪙</span>
+          <span class="coin-amount">{userCoins}</span>
+        </div>
+      </div>
+      
       {#if avatarError}
-        <div class="error-text">{avatarError}</div>
+        <div class="shop-error">{avatarError}</div>
       {/if}
+      {#if avatarSuccess}
+        <div class="shop-success">{avatarSuccess}</div>
+      {/if}
+      
       <div class="avatar-grid">
         {#each avatars as avatar}
+          {@const unlocked = isAvatarUnlocked(avatar.id)}
+          {@const selected = $duel.userAvatar === avatar.id}
+          {@const canAfford = userCoins >= avatar.price}
           <button 
-            class="avatar-option" 
-            class:selected={$duel.userAvatar === avatar.id}
+            class="avatar-card" 
+            class:selected={selected}
+            class:locked={!unlocked}
             on:click={() => selectAvatar(avatar.id)}
             disabled={savingAvatar}
           >
-            {avatar.emoji}
+            <span class="avatar-emoji">{avatar.emoji}</span>
+            {#if selected}
+              <span class="avatar-status selected">Выбран</span>
+            {:else if unlocked}
+              <span class="avatar-status owned">Куплено</span>
+            {:else}
+              <span class="avatar-price" class:cant-afford={!canAfford}>🪙 {avatar.price}</span>
+            {/if}
           </button>
         {/each}
       </div>
-      <div class="modal-actions">
-        <button class="close-btn" on:click={() => showAvatarModal = false}>
-          {$_('profile.close')}
+      
+      <div class="shop-actions">
+        <button class="shop-close-btn" on:click={() => { showAvatarModal = false; avatarError = ''; avatarSuccess = ''; }}>
+          Закрыть
         </button>
       </div>
     </div>
@@ -1028,8 +1078,8 @@
   .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.8);
-    backdrop-filter: blur(4px);
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(6px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1039,72 +1089,173 @@
   .modal-content {
     background: var(--card);
     border: 2px solid var(--accent);
-    border-radius: 24px;
-    padding: 32px;
-    max-width: 500px;
-    width: 95%;
-    box-shadow: 0 0 40px rgba(37, 244, 183, 0.3);
+    border-radius: 20px;
+    padding: 24px;
+    max-width: 420px;
+    width: 90%;
+    box-shadow: 0 0 50px rgba(37, 244, 183, 0.25);
+  }
+
+  .avatar-shop {
+    padding: 20px;
   }
 
   .modal-title {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 700;
-    margin: 0 0 24px 0;
-    text-align: center;
     color: var(--text);
   }
 
+  /* Shop Header */
+  .shop-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  .shop-coins {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(246, 193, 68, 0.15);
+    padding: 6px 14px;
+    border-radius: 16px;
+    border: 1px solid rgba(246, 193, 68, 0.3);
+  }
+
+  .coin-icon {
+    font-size: 18px;
+  }
+
+  .coin-amount {
+    color: #f6c144;
+    font-weight: 700;
+    font-size: 15px;
+  }
+
+  .shop-error {
+    color: var(--danger);
+    font-size: 13px;
+    margin-bottom: 12px;
+    text-align: center;
+    padding: 8px;
+    background: rgba(255, 92, 122, 0.1);
+    border-radius: 8px;
+  }
+
+  .shop-success {
+    color: var(--accent);
+    font-size: 13px;
+    margin-bottom: 12px;
+    text-align: center;
+    padding: 8px;
+    background: rgba(37, 244, 183, 0.1);
+    border-radius: 8px;
+  }
+
+  /* Avatar Grid */
   .avatar-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 10px;
-    margin-bottom: 20px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
   }
 
-  .avatar-option {
+  .avatar-card {
     aspect-ratio: 1;
-    border-radius: 12px;
+    border-radius: 14px;
     border: 2px solid var(--outline);
-    background: rgba(11, 16, 32, 0.8);
-    font-size: 24px;
+    background: rgba(11, 16, 32, 0.9);
     cursor: pointer;
     transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px;
   }
 
-  .avatar-option:hover {
+  .avatar-card:hover {
     border-color: var(--accent);
-    transform: scale(1.1);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(37, 244, 183, 0.15);
   }
 
-  .avatar-option.selected {
+  .avatar-card.selected {
     border-color: var(--accent);
-    background: rgba(37, 244, 183, 0.2);
+    background: rgba(37, 244, 183, 0.15);
+    box-shadow: 0 0 15px rgba(37, 244, 183, 0.2);
   }
 
-  .modal-actions {
+  .avatar-card.locked {
+    opacity: 0.75;
+  }
+
+  .avatar-card.locked:hover {
+    opacity: 1;
+  }
+
+  .avatar-card:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .avatar-emoji {
+    font-size: 36px;
+    line-height: 1;
+  }
+
+  .avatar-status {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  .avatar-status.selected {
+    background: rgba(37, 244, 183, 0.25);
+    color: var(--accent);
+  }
+
+  .avatar-status.owned {
+    background: rgba(37, 244, 183, 0.15);
+    color: var(--accent);
+  }
+
+  .avatar-price {
+    font-size: 11px;
+    font-weight: 600;
+    color: #f6c144;
+  }
+
+  .avatar-price.cant-afford {
+    color: var(--danger);
+  }
+
+  /* Shop Actions */
+  .shop-actions {
     display: flex;
     justify-content: center;
+    margin-top: 8px;
   }
 
-  .close-btn {
-    padding: 10px 30px;
+  .shop-close-btn {
+    padding: 10px 28px;
     border-radius: 10px;
     border: 1px solid var(--outline);
     background: transparent;
     color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
   }
 
-  .close-btn:hover {
+  .shop-close-btn:hover {
     border-color: var(--text);
     color: var(--text);
-  }
-
-  .error-text {
-    color: var(--danger);
-    font-size: 12px;
-    margin-bottom: 10px;
   }
 
   /* Achievement Detail Modal */

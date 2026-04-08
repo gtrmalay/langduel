@@ -12,16 +12,20 @@ const initialState = {
   joinUser: '',
   createRoom: '',
   joinRoom: '',
-  createLang: 'en',
+  createLang: 'en-ru',
   createTopic: 'default',
   createDifficulty: 'intermediate',
   createRounds: 5,
+  generatingPhrases: false,
+  phrasesGenerated: false,
+  generationError: '',
   jwtToken: '',
   authedUsername: '',
   authedUserID: '',
   userAvatar: 'default',
   opponentAvatar: 'default',
   startError: '',
+  gameEndedNormally: false,
   authError: '',
   isCreator: false,
   currentRoom: '',
@@ -40,6 +44,7 @@ const initialState = {
   promptText: 'Waiting for round...',
   timerText: '-',
   roundInfo: '-',
+  totalPhrases: 0,
   correctCount: 0,
   wrongCount: 0,
   totalDamage: 0,
@@ -48,7 +53,9 @@ const initialState = {
   gameOverOpen: false,
   gameOverText: 'Game over',
   gameOverHP: '-',
+  gameOverReason: '',
   eloChange: {},
+  currentDuelId: '',
   profileUser: '-',
   profileDuels: '-',
   profileWins: '-',
@@ -65,7 +72,15 @@ const initialState = {
   leaderboard: [],
   achievements: [],
   hitA: false,
-  hitB: false
+  hitB: false,
+  attackA: false,
+  attackB: false,
+  selfDamageA: false,
+  selfDamageB: false,
+  inputCorrect: false,
+  inputWrong: false,
+  coins: 0,
+  unlockedAvatars: ['default'],
 };
 
 const STORAGE_TOKEN_KEY = 'langduel_token';
@@ -167,8 +182,52 @@ const avatarEmojis = {
   'moon': '🌙',
 };
 
+const avatarPrices = {
+  'default': 0,
+  'knight': 50,
+  'wizard': 75,
+  'archer': 75,
+  'dragon': 100,
+  'skull': 50,
+  'fire': 60,
+  'ice': 60,
+  'lightning': 80,
+  'sword': 50,
+  'shield': 50,
+  'potion': 60,
+  'crown': 150,
+  'star': 100,
+  'moon': 80,
+};
+
+const avatarProjectiles = {
+  'default': { shape: 'circle', color: '#25f4b7' },
+  'knight': { shape: 'shield', color: '#3498db' },
+  'wizard': { shape: 'orb', color: '#9b59b6' },
+  'archer': { shape: 'arrow', color: '#2ecc71' },
+  'dragon': { shape: 'fire', color: '#e74c3c' },
+  'skull': { shape: 'skull', color: '#95a5a6' },
+  'fire': { shape: 'flame', color: '#f39c12' },
+  'ice': { shape: 'shard', color: '#00cec9' },
+  'lightning': { shape: 'bolt', color: '#fdcb6e' },
+  'sword': { shape: 'blade', color: '#d63031' },
+  'shield': { shape: 'shield', color: '#3498db' },
+  'potion': { shape: 'orb', color: '#00b894' },
+  'crown': { shape: 'crown', color: '#fdcb6e' },
+  'star': { shape: 'star', color: '#ffeaa7' },
+  'moon': { shape: 'beam', color: '#a29bfe' },
+};
+
 function getAvatarEmoji(avatarId) {
   return avatarEmojis[avatarId] || avatarEmojis['default'];
+}
+
+function getAvatarPrice(avatarId) {
+  return avatarPrices[avatarId] || 0;
+}
+
+function getAvatarProjectile(avatarId) {
+  return avatarProjectiles[avatarId] || avatarProjectiles['default'];
 }
 
 function applyHP(nextHP) {
@@ -185,7 +244,12 @@ function ensurePlayers(list) {
 
 function showRoundInfo(data) {
   if (data && data.round) {
-    setState({ roundInfo: `Round ${data.round}` });
+    const total = data.total_phrases || data.totalPhrases || 0;
+    if (total > 0) {
+      setState({ roundInfo: `Round ${data.round} / ${total}`, totalPhrases: total });
+    } else {
+      setState({ roundInfo: `Round ${data.round}` });
+    }
   }
 }
 
@@ -210,6 +274,21 @@ function stopCountdown() {
 
 function hitEffect(playerId) {
   const s = get(state);
+  const currentUser = s.currentUser;
+  
+  // Attacker's animation (the one who dealt damage)
+  if (playerId === s.playerA) {
+    // Player B hit, so player A attacked
+    setState({ attackA: true });
+    setTimeout(() => setState({ attackA: false }), 250);
+  }
+  if (playerId === s.playerB) {
+    // Player A hit, so player B attacked
+    setState({ attackB: true });
+    setTimeout(() => setState({ attackB: false }), 250);
+  }
+  
+  // Defender's hit animation
   if (playerId === s.playerA) {
     setState({ hitA: true });
     setTimeout(() => setState({ hitA: false }), 350);
@@ -278,6 +357,21 @@ function connectAndJoin() {
   ws.onclose = () => {
     setState({ status: 'Disconnected' });
     stopCountdown();
+    
+    // If game ended normally (game_over received), go to home instead of reconnect
+    if (get(state).gameEndedNormally) {
+      setState({ 
+        gameEndedNormally: false,
+        gameOverOpen: false,
+        currentRoom: '',
+        hp: {},
+        promptText: 'Waiting for round...',
+        roundInfo: '-'
+      });
+      goto('/');
+      return;
+    }
+    
     const current = get(state).currentRoom;
     if (current) {
       goto(`/reconnect?room=${encodeURIComponent(current)}`);
@@ -309,6 +403,7 @@ function connectAndJoin() {
       ensurePlayers(data.players);
       applyHP(data.hp);
       if (data.prompt) setState({ promptText: data.prompt });
+      if (data.duel_id) setState({ currentDuelId: data.duel_id });
       showRoundInfo(data);
     }
 
@@ -355,26 +450,52 @@ function connectAndJoin() {
     }
 
     if (data.type === 'round_end') {
-      setState({ promptText: 'Time out. Next round...', roundInfo: 'Reason: ' + (data.reason || 'timeout') });
+      setState({ promptText: 'Время вышло. Следующий раунд...', roundInfo: 'Причина: ' + (data.reason || 'timeout') });
       stopCountdown();
+      roundStartAt = null;
     }
 
     if (data.type === 'update') {
       applyHP(data.hp);
       updateStats(!!data.correct, data.damage || 0, data.speed || 0);
-      const correct = data.correct ? 'correct' : 'wrong';
-      setState({
-        roundInfo:
-          'Attack: ' + (data.attacker_id || '-') +
-          ' -> ' + (data.defender_id || '-') +
-          ' | damage: ' + (data.damage || 0) +
-          ' | ' + correct
-      });
+      
+      const s = get(state);
+      const isMyAnswer = data.attacker_id === s.currentUser;
+      
+      if (isMyAnswer) {
+        if (data.correct) {
+          setState({ inputCorrect: true, roundInfo: `✓ Правильно! dmg: ${data.damage}` });
+          setTimeout(() => setState({ inputCorrect: false }), 400);
+        } else {
+          setState({ inputWrong: true, roundInfo: `✗ Попробуй ещё! -${data.self_damage || 0} HP` });
+          setTimeout(() => setState({ inputWrong: false }), 600);
+        }
+      } else {
+        if (data.correct) {
+          setState({ roundInfo: `Соперник ответил правильно! -${data.damage} HP` });
+        } else {
+          setState({ roundInfo: `Соперник ошибся! -${data.self_damage || 0} HP` });
+        }
+      }
+      
+      // Show damage on defender
       if (data.defender_id) hitEffect(data.defender_id);
+      
+      // Show self-damage on attacker if wrong answer
+      if (data.self_damage && data.self_damage > 0 && data.attacker_id) {
+        hitEffect(data.attacker_id);
+      }
     }
 
     if (data.type === 'game_over') {
-      setState({ promptText: 'Winner: ' + data.winner_id, roundInfo: 'Game over' });
+      setState({ 
+        gameEndedNormally: true,
+        promptText: 'Winner: ' + data.winner_id, 
+        roundInfo: 'Game over' 
+      });
+      if (data.duel_id) {
+        setState({ currentDuelId: data.duel_id });
+      }
       applyHP(data.hp);
       if (data.elo) {
         setState({ elo: data.elo });
@@ -382,6 +503,14 @@ function connectAndJoin() {
       if (data.elo_change) {
         setState({ eloChange: data.elo_change });
       }
+      
+      if (data.correct_count && data.wrong_count) {
+        const userID = get(state).currentUser;
+        const userCorrect = data.correct_count[userID] || 0;
+        const userWrong = data.wrong_count[userID] || 0;
+        setState({ correctCount: userCorrect, wrongCount: userWrong });
+      }
+      
       stopCountdown();
       const last = data.hp || {};
       const ids = Object.keys(last);
@@ -405,8 +534,6 @@ function connectAndJoin() {
         'NEXT TIME! 🎮',
         'ALMOST! 💪'
       ];
-      const winEmojis = ['🏆', '⚔️', '🌟', '🔥', '👑', '🎯'];
-      const loseEmojis = ['💔', '💀', '😢', '🎮', '💪'];
       
       let gameText;
       if (isWinner) {
@@ -426,16 +553,43 @@ function connectAndJoin() {
         }
       }
       
+      let reasonText = '';
+      if (data.reason === 'phrases_exhausted') {
+        reasonText = 'Phrases exhausted!';
+      } else if (data.reason === 'hp_zero') {
+        reasonText = 'HP depleted!';
+      }
+      
       setState({
         gameOverOpen: true,
         gameOverText: gameText + eloInfo,
-        gameOverHP: 'Final HP - ' + a + ' | ' + b
+        gameOverHP: 'Final HP - ' + a + ' | ' + b,
+        gameOverReason: reasonText
       });
     }
   };
 }
 
 function reconnect() {
+  // Reset game state before reconnecting
+  setState({
+    hp: {},
+    elo: {},
+    promptText: 'Waiting for round...',
+    timerText: '-',
+    roundInfo: '-',
+    correctCount: 0,
+    wrongCount: 0,
+    totalDamage: 0,
+    totalSpeed: 0,
+    speedCount: 0,
+    gameOverOpen: false,
+    gameEndedNormally: false,
+    hitA: false,
+    hitB: false,
+    attackA: false,
+    attackB: false
+  });
   connectAndJoin();
 }
 
@@ -457,7 +611,14 @@ async function syncAuthFromToken() {
     }
     const data = await res.json();
     const avatar = data.avatar || 'default';
-    setState({ authedUsername: data.username || '', authedUserID: data.user_id || '', userAvatar: avatar, profileUser: data.username });
+    setState({ 
+      authedUsername: data.username || '', 
+      authedUserID: data.user_id || '', 
+      userAvatar: avatar, 
+      profileUser: data.username,
+      coins: data.coins || 0,
+      unlockedAvatars: data.unlocked_avatars || ['default'],
+    });
     localStorage.setItem(STORAGE_TOKEN_KEY, token);
     localStorage.setItem(STORAGE_USER_KEY, data.username);
     localStorage.setItem(STORAGE_AVATAR_KEY, avatar);
@@ -495,6 +656,7 @@ async function syncAuthFromToken() {
             const created = d.created_at ? new Date(d.created_at).toLocaleString() : '-';
             const opponent = d.opponent_username ? `vs ${d.opponent_username}` : 'Waiting for opponent';
             return {
+              duelId: d.duel_id || '',
               room: d.room_code || '-',
               status,
               created,
@@ -578,10 +740,32 @@ function createAndConnect() {
   const user = s.authMode === 'auth'
     ? s.authedUsername
     : (s.createUser.trim() || 'Guest-' + Math.random().toString(36).slice(2, 6));
+  
   if (!user) {
-    setState({ startError: 'Auth mode enabled, but no user is logged in' });
+    setState({ startError: 'Username is required' });
     return;
   }
+  
+  if (!/^[a-zA-Z][a-zA-Z0-9_\-]*$/.test(user)) {
+    setState({ startError: 'Username: 2-30 chars, starts with letter, only letters/numbers/_/-' });
+    return;
+  }
+  
+  if (user.length > 30) {
+    setState({ startError: 'Username max 30 characters' });
+    return;
+  }
+  
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9]$|^[a-zA-Z0-9]$/.test(room)) {
+    setState({ startError: 'Room ID: 3-50 chars, letters/numbers/hyphens only' });
+    return;
+  }
+  
+  if (room.length > 50) {
+    setState({ startError: 'Room ID max 50 characters' });
+    return;
+  }
+  
   setState({
     startError: '',
     isCreator: true,
@@ -605,13 +789,30 @@ function joinAndConnect() {
     setState({ startError: 'Room ID is required' });
     return;
   }
+  
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9]$|^[a-zA-Z0-9]$/.test(room)) {
+    setState({ startError: 'Room ID: 3-50 chars, letters/numbers/hyphens only' });
+    return;
+  }
+  
+  if (room.length > 50) {
+    setState({ startError: 'Room ID max 50 characters' });
+    return;
+  }
+  
   const user = s.authMode === 'auth'
     ? s.authedUsername
     : (s.joinUser.trim() || 'Guest-' + Math.random().toString(36).slice(2, 6));
   if (!user) {
-    setState({ startError: 'Auth mode enabled, but no user is logged in' });
+    setState({ startError: 'Username is required' });
     return;
   }
+  
+  if (!/^[a-zA-Z][a-zA-Z0-9_\-]*$/.test(user)) {
+    setState({ startError: 'Username: 2-30 chars, starts with letter, only letters/numbers/_/-' });
+    return;
+  }
+  
   setState({
     startError: '',
     isCreator: false,
@@ -636,17 +837,24 @@ function gateJoin(nick) {
 }
 
 function sendAnswer(answer) {
-  if (!ws) return;
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  const trimmed = answer.trim();
+  if (!trimmed || trimmed.length > 200) return;
+  
   const speed = roundStartAt ? Date.now() - roundStartAt : 0;
   const s = get(state);
   const msg = {
     type: 'answer',
     room_id: s.currentRoom,
     user_id: s.currentUser,
-    answer: answer.trim(),
+    answer: trimmed,
     speed
   };
-  ws.send(JSON.stringify(msg));
+  try {
+    ws.send(JSON.stringify(msg));
+  } catch (e) {
+    console.error('Failed to send answer:', e);
+  }
 }
 
 function leaveMatch() {
@@ -814,7 +1022,7 @@ async function fetchLeaderboard() {
   const s = get(state);
   try {
     const base = httpBaseFromWs(s.wsUrl);
-    const res = await fetch(`${base}/leaderboard`);
+    const res = await fetch(`${base}/api/leaderboard`);
     if (res.ok) {
       const data = await res.json();
       setState({ leaderboard: data || [] });
@@ -841,32 +1049,145 @@ async function fetchAchievements() {
   }
 }
 
+async function fetchDuelDetails(duelId) {
+  const s = get(state);
+  if (!s.jwtToken) return null;
+  try {
+    const base = httpBaseFromWs(s.wsUrl);
+    const res = await fetch(`${base}/duels?id=${encodeURIComponent(duelId)}`, {
+      headers: { Authorization: 'Bearer ' + s.jwtToken }
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {
+    console.error('Failed to fetch duel details:', e);
+  }
+  return null;
+}
+
+async function fetchDuelAnalysis(duelId) {
+  const s = get(state);
+  if (!duelId) return null;
+  try {
+    const base = httpBaseFromWs(s.wsUrl);
+    const headers = {};
+    if (s.jwtToken) {
+      headers['Authorization'] = 'Bearer ' + s.jwtToken;
+    }
+    const res = await fetch(`${base}/analysis?id=${encodeURIComponent(duelId)}`, { headers });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {
+    console.error('Failed to fetch duel analysis:', e);
+  }
+  return null;
+}
+
 async function claimCoins() {
   const s = get(state);
   if (!s.jwtToken) return { coins_awarded: 0 };
   try {
     const base = httpBaseFromWs(s.wsUrl);
-    console.log('[claimCoins] Calling /me/claim-coins');
     const res = await fetch(`${base}/me/claim-coins`, {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + s.jwtToken }
     });
     if (res.ok) {
       const data = await res.json();
-      console.log('[claimCoins] Response:', data);
-      // Update profile coins
       const newCoins = (s.profileCoins || 0) + (data.coins_awarded || 0);
-      setState({ profileCoins: newCoins });
-      console.log('[claimCoins] Updated coins to:', newCoins);
+      setState({ profileCoins: newCoins, coins: newCoins });
       return data;
-    } else {
-      console.log('[claimCoins] Failed:', res.status);
     }
   } catch (e) {
-    console.log('[claimCoins] Error:', e);
-    // ignore
+    console.error('claimCoins error:', e);
   }
   return { coins_awarded: 0 };
+}
+
+async function buyAvatar(avatarId) {
+  const s = get(state);
+  if (!s.jwtToken) return { error: 'not authenticated' };
+  
+  const price = getAvatarPrice(avatarId);
+  const currentCoins = s.profileCoins || s.coins || 0;
+  if (currentCoins < price) {
+    return { error: 'not enough coins' };
+  }
+  
+  try {
+    const base = httpBaseFromWs(s.wsUrl);
+    const res = await fetch(`${base}/me/buy-avatar`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + s.jwtToken
+      },
+      body: JSON.stringify({ avatar_id: avatarId })
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      setState({ 
+        coins: data.coins,
+        profileCoins: data.coins,
+        unlockedAvatars: data.unlocked_avatars
+      });
+      return data;
+    } else {
+      const err = await res.text();
+      return { error: err };
+    }
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+async function generatePhrases(roomId, topic, difficulty, lang) {
+  const s = get(state);
+  try {
+    setState({ generatingPhrases: true, generationError: '' });
+    const base = httpBaseFromWs(s.wsUrl);
+    
+    // Parse language direction (en-ru or ru-en)
+    let langFrom = 'en';
+    let langTo = 'ru';
+    if (lang === 'ru-en') {
+      langFrom = 'ru';
+      langTo = 'en';
+    }
+    
+    const res = await fetch(`${base}/api/generate-phrases`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        room_id: roomId,
+        topic: topic || s.createTopic,
+        difficulty: difficulty || s.createDifficulty,
+        lang_from: langFrom,
+        lang_to: langTo
+      })
+    });
+    
+    if (!res.ok) {
+      const text = await res.text();
+      setState({ generationError: 'Generation failed: ' + text, generatingPhrases: false });
+      return false;
+    }
+    
+    const data = await res.json();
+    if (data.success) {
+      setState({ phrasesGenerated: true, generatingPhrases: false });
+      return true;
+    } else {
+      setState({ generationError: 'Generation failed', generatingPhrases: false });
+      return false;
+    }
+  } catch (e) {
+    setState({ generationError: 'Error: ' + e.message, generatingPhrases: false });
+    return false;
+  }
 }
 
 export const duel = {
@@ -916,7 +1237,13 @@ export const duel = {
   fetchUserRating,
   fetchLeaderboard,
   fetchAchievements,
+  fetchDuelDetails,
+  fetchDuelAnalysis,
   claimCoins,
+  generatePhrases,
   getAvatarEmoji,
+  getAvatarPrice,
+  getAvatarProjectile,
+  buyAvatar,
   avgSpeed: () => avgSpeed(get(state))
 };

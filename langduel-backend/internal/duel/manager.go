@@ -19,30 +19,37 @@ var (
 const (
 	MaxPlayers = 2
 	StartingHP = 100
+	MaxRounds  = 20
 )
 
 type Event struct {
-	Type       string            `json:"type"`
-	RoomID     string            `json:"room_id"`
-	Round      int               `json:"round,omitempty"`
-	RoundToken int               `json:"round_token,omitempty"`
-	Topic      string            `json:"topic,omitempty"`
-	Difficulty string            `json:"difficulty,omitempty"`
-	Lang       string            `json:"lang,omitempty"`
-	Prompt     string            `json:"prompt,omitempty"`
-	Players    []string          `json:"players,omitempty"`
-	HP         map[string]int    `json:"hp,omitempty"`
-	Avatars    map[string]string `json:"avatars,omitempty"`
-	Elo        map[string]int    `json:"elo,omitempty"`
-	AttackerID string            `json:"attacker_id,omitempty"`
-	DefenderID string            `json:"defender_id,omitempty"`
-	Damage     int               `json:"damage,omitempty"`
-	Correct    bool              `json:"correct,omitempty"`
-	Speed      int               `json:"speed,omitempty"`
-	WinnerID   string            `json:"winner_id,omitempty"`
-	Reason     string            `json:"reason,omitempty"`
-	Error      string            `json:"error,omitempty"`
-	EloChange  map[string]int    `json:"elo_change,omitempty"`
+	Type          string            `json:"type"`
+	RoomID        string            `json:"room_id"`
+	DuelID        string            `json:"duel_id,omitempty"`
+	Round         int               `json:"round"`
+	RoundToken    int               `json:"round_token,omitempty"`
+	TotalPhrases  int               `json:"total_phrases,omitempty"`
+	Topic         string            `json:"topic,omitempty"`
+	Difficulty    string            `json:"difficulty,omitempty"`
+	Lang          string            `json:"lang,omitempty"`
+	Prompt        string            `json:"prompt,omitempty"`
+	CorrectAnswer string            `json:"correct_answer,omitempty"`
+	Players       []string          `json:"players,omitempty"`
+	HP            map[string]int    `json:"hp"`
+	Avatars       map[string]string `json:"avatars,omitempty"`
+	Elo           map[string]int    `json:"elo,omitempty"`
+	AttackerID    string            `json:"attacker_id"`
+	DefenderID    string            `json:"defender_id"`
+	Damage        int               `json:"damage"`
+	SelfDamage    int               `json:"self_damage"`
+	Correct       bool              `json:"correct"`
+	Speed         int               `json:"speed"`
+	WinnerID      string            `json:"winner_id,omitempty"`
+	Reason        string            `json:"reason,omitempty"`
+	Error         string            `json:"error,omitempty"`
+	EloChange     map[string]int    `json:"elo_change,omitempty"`
+	CorrectCount  map[string]int    `json:"correct_count,omitempty"`
+	WrongCount    map[string]int    `json:"wrong_count,omitempty"`
 }
 
 type Manager struct {
@@ -87,6 +94,11 @@ func (m *Manager) Join(roomID, userID, topic, difficulty, lang, avatar string) (
 		room.Lang = lang
 	}
 
+	// Set local topic phrases (fallback if no AI phrases)
+	if len(room.LocalPhrases) == 0 && room.Topic != "" && room.Difficulty != "" {
+		room.SetLocalPhrases(room.Topic, room.Difficulty)
+	}
+
 	if avatar == "" {
 		avatar = "default"
 	}
@@ -111,6 +123,18 @@ func (m *Manager) Join(roomID, userID, topic, difficulty, lang, avatar string) (
 	}
 
 	return events, nil
+}
+
+// GetRoomSnapshot возвращает текущее состояние комнаты для reconnect
+func (m *Manager) GetRoomSnapshot(roomID, userID string) ([]Event, error) {
+	room, err := m.getRoom(roomID)
+	if err != nil {
+		return nil, ErrRoomNotFound
+	}
+	if _, ok := room.Players[userID]; !ok {
+		return nil, ErrNotInRoom
+	}
+	return room.snapshotEventsLocked(), nil
 }
 
 // SubmitAnswer проверяет ответ, применяет урон и
@@ -138,9 +162,16 @@ func (m *Manager) SubmitAnswer(roomID, userID, answer string, speed int) ([]Even
 		return nil, ErrNotInRoom
 	}
 
-	// Нормализуем обе строки, чтобы избежать проблем с регистром и пробелами.
-	correct := normalize(answer) == normalize(room.Expected)
+	// Проверяем ответ по всем допустимым вариантам
+	correct := room.IsAnswerCorrect(answer)
 	damage := ProcessAnswer(attacker, defender, correct, speed)
+
+	correctCount, wrongCount := room.GetPlayerStats()
+
+	selfDamage := 0
+	if !correct && damage == 0 {
+		selfDamage = SelfDamageOnWrong
+	}
 
 	events := []Event{{
 		Type:       "update",
@@ -150,26 +181,62 @@ func (m *Manager) SubmitAnswer(roomID, userID, answer string, speed int) ([]Even
 		AttackerID: attacker.ID,
 		DefenderID: defender.ID,
 		Damage:     damage,
+		SelfDamage: selfDamage,
 		Correct:    correct,
 		Speed:      speed,
 	}}
 
 	if defender.HP <= 0 {
 		events = append(events, Event{
-			Type:     "game_over",
-			RoomID:   room.ID,
-			HP:       room.hpMapLocked(),
-			Elo:      room.eloMapLocked(),
-			WinnerID: attacker.ID,
+			Type:         "game_over",
+			RoomID:       room.ID,
+			DuelID:       room.DuelID,
+			HP:           room.hpMapLocked(),
+			Elo:          room.eloMapLocked(),
+			WinnerID:     attacker.ID,
+			CorrectCount: correctCount,
+			WrongCount:   wrongCount,
+			Reason:       "hp_zero",
+		})
+		return events, nil
+	}
+
+	if attacker.HP <= 0 {
+		events = append(events, Event{
+			Type:         "game_over",
+			RoomID:       room.ID,
+			DuelID:       room.DuelID,
+			HP:           room.hpMapLocked(),
+			Elo:          room.eloMapLocked(),
+			WinnerID:     defender.ID,
+			CorrectCount: correctCount,
+			WrongCount:   wrongCount,
+			Reason:       "hp_zero",
 		})
 		return events, nil
 	}
 
 	if correct {
-		// Новый раунд запускаем только при правильном ответе.
+		hasNext := room.HasMorePhrasesLocked()
 		room.startRoundLocked()
+		if !hasNext {
+			events = append(events, Event{
+				Type:         "game_over",
+				RoomID:       room.ID,
+				DuelID:       room.DuelID,
+				HP:           room.hpMapLocked(),
+				Elo:          room.eloMapLocked(),
+				WinnerID:     attacker.ID,
+				CorrectCount: correctCount,
+				WrongCount:   wrongCount,
+				Reason:       "phrases_exhausted",
+			})
+			return events, nil
+		}
 		events = append(events, room.roundStartEventLocked())
 	}
+	// Wrong answer: just apply self-damage, don't start new round
+	// Round continues until both answer or timeout
 
 	return events, nil
 }
@@ -246,7 +313,25 @@ func (m *Manager) RoundTimeout(roomID string, expectedToken int) ([]Event, error
 		Reason:     "timeout",
 	}}
 
+	hasNext := room.HasMorePhrasesLocked()
 	room.startRoundLocked()
+	if !hasNext {
+		winnerID := room.determineWinnerByHP()
+		correctCount, wrongCount := room.GetPlayerStats()
+		events = append(events, Event{
+			Type:         "game_over",
+			RoomID:       room.ID,
+			DuelID:       room.DuelID,
+			HP:           room.hpMapLocked(),
+			Elo:          room.eloMapLocked(),
+			WinnerID:     winnerID,
+			CorrectCount: correctCount,
+			WrongCount:   wrongCount,
+			Reason:       "phrases_exhausted",
+		})
+		return events, nil
+	}
+
 	events = append(events, room.roundStartEventLocked())
 
 	return events, nil
@@ -293,6 +378,25 @@ func (m *Manager) HasPlayer(roomID, userID string) bool {
 	defer room.mu.Unlock()
 	_, ok := room.Players[userID]
 	return ok
+}
+
+// SetAIPhrases устанавливает AI сгенерированные фразы для комнаты
+func (m *Manager) SetAIPhrases(roomID string, phrases []AIPhraseData) bool {
+	room, err := m.getRoom(roomID)
+	if err != nil {
+		return false
+	}
+	room.SetAIPhrases(phrases)
+	return true
+}
+
+func (m *Manager) SetDuelID(roomID, duelID string) bool {
+	room, err := m.getRoom(roomID)
+	if err != nil {
+		return false
+	}
+	room.SetDuelID(duelID)
+	return true
 }
 
 // normalize: trim + lowercase перед сравнением.

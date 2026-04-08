@@ -4,14 +4,14 @@
   import { _ } from 'svelte-i18n';
 
   let loading = true;
-  let leaderboard = [];
   let currentUserID = '';
+
+  $: leaderboard = $duel.leaderboard;
 
   onMount(async () => {
     await duel.init();
     currentUserID = $duel.authedUserID;
     await duel.fetchLeaderboard();
-    leaderboard = $duel.leaderboard;
     loading = false;
   });
 
@@ -61,15 +61,15 @@
           class="entry" 
           class:highlight={entry.user_id === currentUserID}
         >
-          <div class="rank" style="color: {getRankColor(entry.rank)}">
-            {#if entry.rank_num === 1}
+          <div class="rank" style="color: {getRankColor(entry.rank_tier)}">
+            {#if entry.rank === 1}
               🥇
-            {:else if entry.rank_num === 2}
+            {:else if entry.rank === 2}
               🥈
-            {:else if entry.rank_num === 3}
+            {:else if entry.rank === 3}
               🥉
             {:else}
-              #{entry.rank_num}
+              #{entry.rank}
             {/if}
           </div>
           
@@ -79,7 +79,7 @@
           
           <div class="info">
             <div class="username">{entry.username}</div>
-            <div class="rank-name">{getTranslatedRankName(entry.rank)}</div>
+            <div class="rank-name">{getTranslatedRankName(entry.rank_tier)}</div>
           </div>
           
           <div class="elo">

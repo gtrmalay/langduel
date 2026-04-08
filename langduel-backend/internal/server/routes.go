@@ -4,18 +4,12 @@ import (
 	"fmt"
 	"langduel/internal/ws"
 	"net/http"
-	"os"
-	"path/filepath"
 )
 
 func (s *Server) routes() {
 
 	s.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "LangDuel API running")
-	})
-	s.mux.HandleFunc("/battle", func(w http.ResponseWriter, r *http.Request) {
-		cwd, _ := os.Getwd()
-		http.ServeFile(w, r, filepath.Join(cwd, "battle.html"))
 	})
 
 	// websocket endpoint
@@ -32,11 +26,21 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/me/username", authMiddleware(s.handleUpdateUsername))
 	s.mux.HandleFunc("/me/avatar", authMiddleware(s.handleUpdateAvatar))
 	s.mux.HandleFunc("/me/rating", authMiddleware(s.handleMyRating))
+	s.mux.HandleFunc("/duels", authMiddleware(s.handleDuelDetails))
 
 	// public endpoints
-	s.mux.HandleFunc("/leaderboard", s.handleLeaderboard)
+	s.mux.HandleFunc("/analysis", s.handleDuelAnalysisPublic)
+
+	// public endpoints
+	s.mux.HandleFunc("/api/leaderboard", s.handleLeaderboard)
 
 	// achievement endpoints
 	s.mux.HandleFunc("/me/achievements", authMiddleware(s.handleMyAchievements))
 	s.mux.HandleFunc("/me/claim-coins", authMiddleware(s.handleClaimCoins))
+
+	// avatar shop endpoints
+	s.mux.HandleFunc("/me/buy-avatar", authMiddleware(s.handleBuyAvatar))
+
+	// AI phrase generation endpoint
+	s.mux.HandleFunc("/api/generate-phrases", s.handleGeneratePhrases)
 }
