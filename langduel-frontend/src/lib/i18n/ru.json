@@ -167,6 +167,10 @@
     "passwordTooShort": "Пароль слишком короткий",
     "passwordMismatch": "Пароли не совпадают"
   },
+  "confirm": {
+    "logout": "Вы уверены, что хотите выйти?",
+    "usernameEmpty": "Пожалуйста, введите имя"
+  },
   "leaderboard": {
     "title": "РЕЙТИНГ",
     "loading": "Загрузка...",

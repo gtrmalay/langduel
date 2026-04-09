@@ -1,0 +1,47 @@
+# Environment files
+.env
+.env.local
+.env.production
+.env.docker
+
+# Docker
+docker-compose.override.yml
+
+# Build outputs
+langduel-frontend/.output/
+langduel-frontend/.svelte-kit/
+
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+server
+server_new
+
+# Test binary, compiled with "go test -c"
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Dependencies
+node_modules/
+
+# Database
+postgres_data/

@@ -166,8 +166,10 @@
   });
 
   function handleLogout() {
-    duel.logout();
-    goto('/');
+    if (confirm($_('confirm.logout'))) {
+      duel.logout();
+      goto('/');
+    }
   }
 
   function startEditUsername() {

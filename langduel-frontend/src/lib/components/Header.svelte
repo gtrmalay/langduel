@@ -20,7 +20,12 @@
         <button class="nav-btn profile" on:click={() => goto('/profile')}>
           {$duel.authedUsername}
         </button>
-        <button class="nav-btn ghost" on:click={() => { duel.logout(); goto('/'); }}>
+        <button class="nav-btn ghost" on:click={() => {
+          if (confirm($_('confirm.logout'))) {
+            duel.logout();
+            goto('/');
+          }
+        }}>
           {$_('nav.logout')}
         </button>
       {:else}

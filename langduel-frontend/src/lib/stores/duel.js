@@ -699,6 +699,7 @@ async function login(username, password) {
     setState({ jwtToken: data.token || '', authedUsername: data.username || '' });
     await syncAuthFromToken();
   } catch (e) {
+    console.error('Login exception:', e);
     setState({ authError: 'Auth error: ' + (e && e.message ? e.message : e) });
   }
 }

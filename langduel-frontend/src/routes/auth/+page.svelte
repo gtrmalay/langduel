@@ -17,10 +17,14 @@
   });
 
   async function doLogin() {
-    await duel.login(authLogin.trim(), authPass);
-    if ($duel.authedUsername) {
-      duel.setAuthMode('auth');
-      goto(next);
+    try {
+      await duel.login(authLogin.trim(), authPass);
+      if ($duel.authedUsername && !$duel.authError) {
+        duel.setAuthMode('auth');
+        goto(next);
+      }
+    } catch (e) {
+      console.error('Login error:', e);
     }
   }
 
@@ -88,7 +92,7 @@
             bind:value={authPass} 
             on:keydown={(e) => e.key === 'Enter' && doLogin()}
           />
-          <button class="submit-btn" on:click={doLogin}>
+          <button type="button" class="submit-btn" on:click={doLogin}>
             {$_('auth.loginBtn')}
           </button>
         </div>
@@ -115,7 +119,7 @@
             bind:value={regConfirm}
             on:keydown={(e) => e.key === 'Enter' && doRegister()}
           />
-          <button class="submit-btn" on:click={doRegister}>
+          <button type="button" class="submit-btn" on:click={doRegister}>
             {$_('auth.registerBtn')}
           </button>
         </div>

@@ -167,6 +167,10 @@
     "passwordTooShort": "Password too short",
     "passwordMismatch": "Passwords do not match"
   },
+  "confirm": {
+    "logout": "Are you sure you want to logout?",
+    "usernameEmpty": "Please enter a username"
+  },
   "leaderboard": {
     "title": "LEADERBOARD",
     "loading": "Loading...",

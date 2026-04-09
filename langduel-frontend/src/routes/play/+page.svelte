@@ -72,6 +72,24 @@
       phrasesGenerated = true;
     }
   }
+
+  function handleCreateRoom() {
+    if (!$duel.createUser || !$duel.createUser.trim()) {
+      duel.setField('startError', $_('confirm.usernameEmpty'));
+      return;
+    }
+    duel.setField('startError', '');
+    duel.createAndConnect();
+  }
+
+  function handleJoinRoom() {
+    if (!$duel.joinUser || !$duel.joinUser.trim()) {
+      duel.setField('startError', $_('confirm.usernameEmpty'));
+      return;
+    }
+    duel.setField('startError', '');
+    duel.joinAndConnect();
+  }
 </script>
 
 <div class="wrap">
@@ -214,7 +232,7 @@
         {/if}
       </div>
 
-      <button class="action-btn" on:click={() => duel.createAndConnect()}>
+      <button class="action-btn" on:click={handleCreateRoom}>
         {$_('play.createRoom').toUpperCase()}
       </button>
 
@@ -245,7 +263,7 @@
         />
       </div>
 
-      <button class="action-btn" on:click={() => duel.joinAndConnect()}>
+      <button class="action-btn" on:click={handleJoinRoom}>
         {$_('play.joinRoom').toUpperCase()}
       </button>
     {/if}
