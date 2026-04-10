@@ -6,6 +6,7 @@ AI_STRATEGY.md
 docs/
 ROADMAP.md
 DATABASE_SCHEMA.md
+DEPLOY.md
 
 # Environment files
 .env
