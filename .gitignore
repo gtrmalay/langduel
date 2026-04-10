@@ -1,7 +1,11 @@
-# Documentation (except README)
+# AI-related documentation
+AI_GENERATION.md
+AI_STRATEGY.md
+
+# Documentation folders
 docs/
-*.md
-!README.md
+ROADMAP.md
+DATABASE_SCHEMA.md
 
 # Environment files
 .env
