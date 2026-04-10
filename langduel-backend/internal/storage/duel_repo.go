@@ -45,9 +45,10 @@ type Duel struct {
 }
 
 type Participant struct {
-	ID     string
-	DuelID string
-	UserID string
+	ID          string
+	DuelID      string
+	UserID      string
+	PlayerOrder int
 }
 
 type Round struct {
@@ -302,14 +303,22 @@ func (r *DuelRepo) EnsureParticipant(ctx context.Context, duelID, userID string,
 		`INSERT INTO duel_participants (duel_id, user_id, player_order)
          VALUES ($1, $2, $3)
          ON CONFLICT (duel_id, user_id) DO UPDATE SET player_order = EXCLUDED.player_order
-         RETURNING participant_id`,
+         RETURNING id, duel_id, user_id, player_order`,
 		duelID, userID, playerOrder,
 	)
-	var id string
-	if err := row.Scan(&id); err != nil {
+	var p Participant
+	if err := row.Scan(&p.ID, &p.DuelID, &p.UserID, &p.PlayerOrder); err != nil {
 		return nil, err
 	}
-	return &Participant{ID: id, DuelID: duelID, UserID: userID}, nil
+	return &p, nil
+}
+
+func (r *DuelRepo) DeletePendingDuel(ctx context.Context, roomCode string) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`DELETE FROM duels WHERE room_code = $1 AND status = 'pending'`,
+		roomCode,
+	)
+	return err
 }
 
 func (r *DuelRepo) CreateRound(ctx context.Context, duelID string, roundNumber int, phraseText, correctAnswer, lang, topic string, timeLimitMs int) (*Round, error) {

@@ -12,6 +12,10 @@
   $: playerAAvatar = isPlayerA ? ($duel.userAvatar || 'default') : ($duel.opponentAvatar || 'default');
   $: playerBAvatar = isPlayerA ? ($duel.opponentAvatar || 'default') : ($duel.userAvatar || 'default');
 
+  $: ping = $duel.ping;
+  $: pingColor = ping < 0 ? '#ff5c7a' : ping < 100 ? '#25f4b7' : ping < 300 ? '#f6c144' : '#ff5c7a';
+  $: pingIcon = ping < 0 ? '🔴' : ping < 100 ? '🟢' : ping < 300 ? '🟡' : '🔴';
+
   onMount(() => {
     duel.init();
     const params = new URLSearchParams(window.location.search);
@@ -35,15 +39,21 @@
     correctCount={$duel.correctCount}
     wrongCount={$duel.wrongCount}
     totalDamage={$duel.totalDamage}
+    playerADamage={$duel.playerADamage}
+    playerBDamage={$duel.playerBDamage}
     avgSpeedValue={duel.avgSpeed()}
     bind:answer
     hitA={$duel.hitA}
     hitB={$duel.hitB}
+    lastDamage={$duel.lastDamage}
+    lastDamageTo={$duel.lastDamageTo}
     gameOverOpen={$duel.gameOverOpen}
     gameOverText={$duel.gameOverText}
     gameOverHP={$duel.gameOverHP}
     gameOverReason={$duel.gameOverReason}
     duelId={$duel.currentDuelId || ''}
+    connectionStatus={$duel.connectionStatus}
+    ping={$duel.ping}
     onSend={() => {
       duel.sendAnswer(answer);
       answer = '';

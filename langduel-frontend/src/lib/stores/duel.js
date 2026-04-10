@@ -8,6 +8,8 @@ const initialState = {
   authChoiceMade: false,
   authTab: 'login',
   wsUrl: '',
+  connectionStatus: 'disconnected', // connected, connecting, disconnected
+  ping: -1,
   createUser: '',
   joinUser: '',
   createRoom: '',
@@ -48,6 +50,10 @@ const initialState = {
   correctCount: 0,
   wrongCount: 0,
   totalDamage: 0,
+  lastDamage: 0,
+  lastDamageTo: '',
+  playerADamage: 0,
+  playerBDamage: 0,
   totalSpeed: 0,
   speedCount: 0,
   gameOverOpen: false,
@@ -140,17 +146,31 @@ function resetStats() {
     correctCount: 0,
     wrongCount: 0,
     totalDamage: 0,
+    lastDamage: 0,
+    lastDamageTo: '',
+    playerADamage: 0,
+    playerBDamage: 0,
     totalSpeed: 0,
     speedCount: 0
   });
 }
 
-function updateStats(correct, damage, speed) {
+function updateStats(correct, damage, speed, targetId) {
   state.update((s) => {
     const next = { ...s };
     if (correct) next.correctCount += 1;
     else next.wrongCount += 1;
     next.totalDamage += damage;
+    next.lastDamage = damage;
+    next.lastDamageTo = targetId || '';
+    
+    // Track damage per player
+    if (targetId === next.playerA) {
+      next.playerADamage = (next.playerADamage || 0) + damage;
+    } else if (targetId === next.playerB) {
+      next.playerBDamage = (next.playerBDamage || 0) + damage;
+    }
+    
     if (speed > 0) {
       next.totalSpeed += speed;
       next.speedCount += 1;
@@ -324,6 +344,31 @@ function ensureRoomId() {
   }
 }
 
+let pingInterval = null;
+let pingStartTime = 0;
+
+function startPingMeasurement() {
+  if (pingInterval) clearInterval(pingInterval);
+  pingInterval = setInterval(() => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      pingStartTime = Date.now();
+      ws.send(JSON.stringify({ type: 'ping', ts: pingStartTime }));
+    }
+  }, 3000);
+}
+
+function stopPingMeasurement() {
+  if (pingInterval) {
+    clearInterval(pingInterval);
+    pingInterval = null;
+  }
+}
+
+function handlePingResponse(ts) {
+  const latency = Date.now() - ts;
+  setState({ ping: latency });
+}
+
 function connectAndJoin() {
   const s = get(state);
   if (!s.currentRoom || !s.currentUser) return;
@@ -339,7 +384,13 @@ function connectAndJoin() {
   ws = new WebSocket(url);
 
   ws.onopen = () => {
-    setState({ status: 'Connected', lobbyText: 'Waiting for opponent...' });
+    setState({ 
+      status: 'Connected', 
+      lobbyText: 'Waiting for opponent...',
+      connectionStatus: 'connected',
+      ping: -1
+    });
+    startPingMeasurement();
     const msg = {
       type: 'join',
       room_id: s.currentRoom,
@@ -355,7 +406,8 @@ function connectAndJoin() {
   };
 
   ws.onclose = () => {
-    setState({ status: 'Disconnected' });
+    setState({ status: 'Disconnected', connectionStatus: 'disconnected', ping: -1 });
+    stopPingMeasurement();
     stopCountdown();
     
     // If game ended normally (game_over received), go to home instead of reconnect
@@ -380,6 +432,10 @@ function connectAndJoin() {
     }
   };
 
+  ws.onerror = () => {
+    setState({ connectionStatus: 'disconnected', ping: -1 });
+  };
+
   ws.onmessage = (ev) => {
     let data = null;
     try {
@@ -396,6 +452,11 @@ function connectAndJoin() {
         raw.includes('user already in room') ? 'User already in room' :
         raw;
       setState({ startError: nice });
+      return;
+    }
+
+    if (data.type === 'pong') {
+      handlePingResponse(data.ts);
       return;
     }
 
@@ -449,6 +510,19 @@ function connectAndJoin() {
       goto(`/battle?room=${encodeURIComponent(get(state).currentRoom)}`);
     }
 
+    if (data.type === 'halftime') {
+      setState({ promptText: data.prompt || '⏸ HALF TIME ⏸', roundInfo: 'Half 2 / 2' });
+      applyHP(data.hp);
+      stopCountdown();
+      roundStartAt = null;
+      // After 5 seconds, start next round
+      setTimeout(() => {
+        if (get(state).currentRoom && get(state).connectionStatus === 'connected') {
+          ws.send(JSON.stringify({ type: 'next_round', room_id: get(state).currentRoom }));
+        }
+      }, 5000);
+    }
+
     if (data.type === 'round_end') {
       setState({ promptText: 'Время вышло. Следующий раунд...', roundInfo: 'Причина: ' + (data.reason || 'timeout') });
       stopCountdown();
@@ -457,7 +531,22 @@ function connectAndJoin() {
 
     if (data.type === 'update') {
       applyHP(data.hp);
-      updateStats(!!data.correct, data.damage || 0, data.speed || 0);
+      
+      // Determine who received damage (opponent or self)
+      let damageTarget = '';
+      let damageAmount = 0;
+      
+      if (data.correct) {
+        // Correct answer: damage to opponent
+        damageTarget = data.defender_id || '';
+        damageAmount = data.damage || 0;
+      } else if (data.self_damage && data.self_damage > 0) {
+        // Wrong answer: self-damage
+        damageTarget = data.attacker_id || '';
+        damageAmount = data.self_damage;
+      }
+      
+      updateStats(!!data.correct, damageAmount, data.speed || 0, damageTarget);
       
       const s = get(state);
       const isMyAnswer = data.attacker_id === s.currentUser;
@@ -508,7 +597,15 @@ function connectAndJoin() {
         const userID = get(state).currentUser;
         const userCorrect = data.correct_count[userID] || 0;
         const userWrong = data.wrong_count[userID] || 0;
-        setState({ correctCount: userCorrect, wrongCount: userWrong });
+        
+        // Use the damage tracked during the game (more accurate)
+        const s = get(state);
+        setState({ 
+          correctCount: userCorrect, 
+          wrongCount: userWrong,
+          playerADamage: s.playerADamage || 0,
+          playerBDamage: s.playerBDamage || 0
+        });
       }
       
       stopCountdown();
@@ -839,11 +936,15 @@ function gateJoin(nick) {
 
 function sendAnswer(answer) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  
+  // Block answers during halftime
+  const s = get(state);
+  if (s.promptText && s.promptText.includes('HALF TIME')) return;
+  
   const trimmed = answer.trim();
   if (!trimmed || trimmed.length > 200) return;
   
   const speed = roundStartAt ? Date.now() - roundStartAt : 0;
-  const s = get(state);
   const msg = {
     type: 'answer',
     room_id: s.currentRoom,
@@ -859,6 +960,16 @@ function sendAnswer(answer) {
 }
 
 function leaveMatch() {
+  // Send leave message to server
+  const s = get(state);
+  if (ws && ws.readyState === WebSocket.OPEN && s.currentRoom) {
+    ws.send(JSON.stringify({
+      type: 'leave',
+      room_id: s.currentRoom,
+      user_id: s.currentUser
+    }));
+  }
+  
   try {
     if (ws) ws.close();
   } catch {}
@@ -874,11 +985,14 @@ function logout() {
   localStorage.removeItem(STORAGE_TOKEN_KEY);
   localStorage.removeItem(STORAGE_USER_KEY);
   localStorage.removeItem(STORAGE_AVATAR_KEY);
+  localStorage.removeItem(STORAGE_GUEST_KEY);
+  localStorage.removeItem(STORAGE_AUTH_CHOICE_KEY);
   setState({
     jwtToken: '',
     authedUsername: '',
     authedUserID: '',
     authMode: 'guest',
+    authChoiceMade: false,
     profileUser: '-',
     profileDuels: '-',
     profileWins: '-',
@@ -887,7 +1001,9 @@ function logout() {
     profileDuelsCount: '0',
     profileDuelsList: [],
     userAvatar: 'default',
-    opponentAvatar: 'default'
+    opponentAvatar: 'default',
+    createUser: '',
+    joinUser: ''
   });
 }
 
@@ -911,9 +1027,6 @@ function init() {
     } else if (storedToken) {
       setState({ authMode: 'auth', authChoiceMade: true });
       localStorage.setItem(STORAGE_AUTH_CHOICE_KEY, 'auth');
-    } else {
-      setState({ authMode: 'guest', authChoiceMade: true });
-      localStorage.setItem(STORAGE_AUTH_CHOICE_KEY, 'guest');
     }
     const last = localStorage.getItem(STORAGE_LAST_KEY);
     if (last) {
@@ -1203,6 +1316,7 @@ export const duel = {
     localStorage.removeItem(STORAGE_TOKEN_KEY);
     localStorage.removeItem(STORAGE_USER_KEY);
     localStorage.removeItem(STORAGE_AVATAR_KEY);
+    localStorage.removeItem(STORAGE_GUEST_KEY);
     setState({
       jwtToken: '',
       authedUsername: '',
@@ -1214,7 +1328,9 @@ export const duel = {
       opponentAvatar: 'default',
       profileElo: 1000,
       profileRank: 'newbie',
-      profileRankName: '🥉 Newbie'
+      profileRankName: '🥉 Newbie',
+      createUser: '',
+      joinUser: ''
     });
     localStorage.setItem(STORAGE_AUTH_CHOICE_KEY, 'guest');
   },
@@ -1246,5 +1362,7 @@ export const duel = {
   getAvatarPrice,
   getAvatarProjectile,
   buyAvatar,
-  avgSpeed: () => avgSpeed(get(state))
+  avgSpeed: () => avgSpeed(get(state)),
+  connectionStatus: () => get(state).connectionStatus,
+  ping: () => get(state).ping
 };

@@ -39,16 +39,34 @@
     if (room) {
       duel.setField('joinRoom', room);
       activeTab = 'join';
+      duel.setFlowMode('join');
     }
     if (!$duel.authChoiceMade) {
       const next = room ? `/play?room=${encodeURIComponent(room)}` : '/play';
       goto(`/auth?next=${encodeURIComponent(next)}`);
     }
+    // Auto-generate room ID if coming to create tab without one
+    if (!$duel.createRoom) {
+      duel.ensureRoomId();
+    }
   });
 
+  let hasManuallySelectedTab = false;
+
   function handleTab(tab) {
+    hasManuallySelectedTab = true;
     activeTab = tab;
     duel.setFlowMode(tab);
+    // Auto-generate room ID once when switching to create tab (if not already generated)
+    if (tab === 'create' && !$duel.createRoom) {
+      duel.ensureRoomId();
+    }
+  }
+
+  // Only auto-switch to join tab if user came from invite link AND hasn't manually selected a tab
+  $: if ($duel.authChoiceMade && $duel.joinRoom && !hasManuallySelectedTab) {
+    activeTab = 'join';
+    duel.setFlowMode('join');
   }
 
   async function handleGeneratePhrases() {
@@ -74,16 +92,17 @@
   }
 
   function handleCreateRoom() {
-    if (!$duel.createUser || !$duel.createUser.trim()) {
-      duel.setField('startError', $_('confirm.usernameEmpty'));
-      return;
+    // Generate username if empty (for guests)
+    if ($duel.authMode !== 'auth' && (!$duel.createUser || !$duel.createUser.trim())) {
+      const randomName = 'Guest-' + Math.random().toString(36).slice(2, 6);
+      duel.setField('createUser', randomName);
     }
     duel.setField('startError', '');
     duel.createAndConnect();
   }
 
   function handleJoinRoom() {
-    if (!$duel.joinUser || !$duel.joinUser.trim()) {
+    if ($duel.authMode !== 'auth' && (!$duel.joinUser || !$duel.joinUser.trim())) {
       duel.setField('startError', $_('confirm.usernameEmpty'));
       return;
     }
@@ -183,6 +202,7 @@
         </div>
       </div>
       
+      {#if $duel.authMode !== 'auth'}
       <div class="form-group">
         <label for="nickname-create">{$_('play.username')}</label>
         <input 
@@ -195,6 +215,7 @@
           pattern="[a-zA-Z][a-zA-Z0-9_\-]*"
         />
       </div>
+      {/if}
 
       <div class="invite-section">
         <span class="invite-label">{$_('play.join').toUpperCase()}:</span>
@@ -232,7 +253,7 @@
         {/if}
       </div>
 
-      <button class="action-btn" on:click={handleCreateRoom}>
+      <button type="button" class="action-btn" on:click={handleCreateRoom}>
         {$_('play.createRoom').toUpperCase()}
       </button>
 
@@ -250,6 +271,7 @@
         />
       </div>
 
+      {#if $duel.authMode !== 'auth'}
       <div class="form-group">
         <label for="nickname-join">{$_('play.username')}</label>
         <input 
@@ -262,8 +284,9 @@
           pattern="[a-zA-Z][a-zA-Z0-9_\-]*"
         />
       </div>
+      {/if}
 
-      <button class="action-btn" on:click={handleJoinRoom}>
+      <button type="button" class="action-btn" on:click={handleJoinRoom}>
         {$_('play.joinRoom').toUpperCase()}
       </button>
     {/if}

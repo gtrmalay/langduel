@@ -13,10 +13,14 @@
   export let correctCount = 0;
   export let wrongCount = 0;
   export let totalDamage = 0;
+  export let playerADamage = 0;
+  export let playerBDamage = 0;
   export let avgSpeedValue = '-';
   export let answer = '';
   export let hitA = false;
   export let hitB = false;
+  export let lastDamage = 0;
+  export let lastDamageTo = '';
   export let attackA = false;
   export let attackB = false;
   export let inputCorrect = false;
@@ -26,6 +30,8 @@
   export let gameOverHP = '';
   export let gameOverReason = '';
   export let duelId = '';
+  export let connectionStatus = 'disconnected';
+  export let ping = -1;
   export let onSend = () => {};
   export let onLeave = () => {};
   export let onPlayAgain = () => {};
@@ -41,6 +47,7 @@
   let particles = [];
   let showRoundAnnounce = false;
   let announceRound = 1;
+  let halftimeCountdown = '';
   let timerDanger = false;
   let timerCritical = false;
   let localInputCorrect = false;
@@ -82,6 +89,8 @@
   $: if (promptText && promptText !== lastPrompt && !gameOverOpen) {
     lastPrompt = promptText;
     triggerRoundAnnounce();
+    // Auto-focus input after round change
+    if (answerInput) setTimeout(() => answerInput.focus(), 100);
   }
 
   $: if (hitA && !avatarHitA) triggerPlayerHit('A');
@@ -137,8 +146,43 @@
   }
 
   function triggerRoundAnnounce() {
+    // Check if it's halftime
+    if (roundInfo.includes('HALFTIME') || roundInfo.includes('Half 2')) {
+      announceRound = 'HALF 2';
+      showRoundAnnounce = true;
+      
+      // Start halftime countdown (5 seconds)
+      let halftimeLeft = 5;
+      halftimeCountdown = '5';
+      
+      const halftimeInterval = setInterval(() => {
+        halftimeLeft--;
+        halftimeCountdown = halftimeLeft.toString();
+        if (halftimeLeft <= 0) {
+          clearInterval(halftimeInterval);
+          halftimeCountdown = '';
+        }
+      }, 1000);
+      
+      setTimeout(() => {
+        showRoundAnnounce = false;
+        halftimeCountdown = '';
+      }, 5000);
+      return;
+    }
+    
+    // Regular round announcement - only for rounds 1 and 11 (start of each half)
     const match = roundInfo.match(/Round (\d+)/);
-    announceRound = match ? parseInt(match[1]) : 1;
+    if (!match) return;
+    
+    const roundNum = parseInt(match[1]);
+    
+    // Only show announcement for first round of each half
+    if (roundNum !== 1 && roundNum !== 11) {
+      return;
+    }
+    
+    announceRound = roundNum;
     showRoundAnnounce = true;
     
     showPromptTyping = true;
@@ -229,15 +273,49 @@
   $: charB = getCharacter(playerBEmoji);
   $: hpA = hp[playerA] ?? 100;
   $: hpB = hp[playerB] ?? 100;
+  $: pingColor = ping < 0 ? '#ff5c7a' : ping < 100 ? '#25f4b7' : ping < 300 ? '#f6c144' : '#ff5c7a';
+  $: pingIcon = ping < 0 ? '🔴' : ping < 100 ? '🟢' : ping < 300 ? '🟡' : '🔴';
+  $: pingText = ping < 0 ? '-' : ping + 'ms';
+  
+  // Compute current half from round number
+  $: currentHalf = (() => {
+    const match = roundInfo.match(/Round (\d+)/);
+    if (!match) return 1;
+    const roundNum = parseInt(match[1]);
+    return roundNum <= 10 ? 1 : 2;
+  })();
+  
+  // Check if we're in halftime (input disabled)
+  $: isHalftime = roundInfo && roundInfo.includes('Half 2');
+  $: inputDisabled = isHalftime || gameOverOpen;
+  
+  // Combined round display
+  $: roundDisplay = roundInfo ? roundInfo + (currentHalf ? ` (Half ${currentHalf}/2)` : '') : $_('battle.round').toUpperCase();
 </script>
 
 <div class="battle-container" class:shake={screenShake}>
+  {#if connectionStatus === 'disconnected'}
+    <div class="connection-overlay">
+      <div class="connection-lost">
+        <span class="conn-icon">📡</span>
+        <span class="conn-text">Connection lost. Reconnecting...</span>
+      </div>
+    </div>
+  {/if}
+  
+  <div class="ping-indicator" style="background: {pingColor}20; border-color: {pingColor}">
+    <span class="ping-icon">{pingIcon}</span>
+    <span class="ping-value" style="color: {pingColor}">{pingText}</span>
+  </div>
   {#if showRoundAnnounce}
     <div class="round-announce-overlay">
       <div class="round-announce">
         <span class="round-sword">⚔️</span>
-        <span class="round-text">ROUND {announceRound}</span>
+        <span class="round-text">{typeof announceRound === 'string' ? announceRound : 'ROUND ' + announceRound}</span>
         <span class="round-sword">⚔️</span>
+        {#if halftimeCountdown}
+          <div class="halftime-countdown">{halftimeCountdown}</div>
+        {/if}
       </div>
     </div>
   {/if}
@@ -266,7 +344,7 @@
           {charA.emoji}
         </div>
         {#if avatarHitA}
-          <div class="damage-number">-{totalDamage}</div>
+          <div class="damage-number">-{playerA === lastDamageTo ? lastDamage : 0}</div>
         {/if}
         {#if projectileA}
           <div class="projectile projectile-a projectile-{charA.projectile}" style="background: {charA.color}; box-shadow: 0 0 20px {charA.color};"></div>
@@ -299,7 +377,7 @@
           {charB.emoji}
         </div>
         {#if avatarHitB}
-          <div class="damage-number damage-number-b">-{totalDamage}</div>
+          <div class="damage-number damage-number-b">-{playerB === lastDamageTo ? lastDamage : 0}</div>
         {/if}
         {#if projectileB}
           <div class="projectile projectile-b projectile-{charB.projectile}" style="background: {charB.color}; box-shadow: 0 0 20px {charB.color};"></div>
@@ -317,7 +395,7 @@
   </div>
 
   <div class="timer-section" class:danger={timerDanger} class:critical={timerCritical}>
-    <div class="round-label">{roundInfo || $_('battle.round').toUpperCase()}</div>
+    <div class="round-label">{roundDisplay}</div>
     <div class="timer">{timerText || '0:00'}</div>
   </div>
 
@@ -342,9 +420,10 @@
       bind:this={answerInput}
       autocomplete="off"
       maxlength="200"
-      on:keydown={(e) => e.key === 'Enter' && answer.trim() && handleSend()}
+      disabled={inputDisabled}
+      on:keydown={(e) => e.key === 'Enter' && !inputDisabled && answer.trim() && handleSend()}
     />
-    <button class="submit-btn" on:click={handleSend} disabled={!answer.trim()}>
+    <button class="submit-btn" on:click={handleSend} disabled={!answer.trim() || inputDisabled}>
       {$_('battle.submit').toUpperCase()}
     </button>
   </div>
@@ -375,7 +454,13 @@
           </div>
           <div class="stat" style="animation-delay: 300ms">
             <span class="stat-label">{$_('battle.damage')}</span>
-            <span class="stat-value">{totalDamage}</span>
+            <span class="stat-value">
+              {#if playerADamage !== playerBDamage}
+                {playerADamage} / {playerBDamage}
+              {:else}
+                {playerADamage || totalDamage}
+              {/if}
+            </span>
           </div>
         </div>
         <button class="play-again-btn" on:click={onPlayAgain}>{$_('gameOver.playAgain').toUpperCase()}</button>
@@ -488,9 +573,17 @@
 
   .round-announce {
     display: flex;
+    flex-direction: column;
     align-items: center;
     gap: 24px;
     animation: roundSlam 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    position: relative;
+  }
+
+  .round-announce > span {
+    display: flex;
+    align-items: center;
+    gap: 24px;
   }
 
   .round-sword {
@@ -508,6 +601,21 @@
     color: var(--accent-2);
     text-shadow: 0 0 30px rgba(246, 193, 68, 0.8);
     letter-spacing: 4px;
+  }
+
+  .halftime-countdown {
+    position: absolute;
+    bottom: -60px;
+    font-family: "Press Start 2P", cursive;
+    font-size: 32px;
+    color: var(--danger);
+    text-shadow: 0 0 20px rgba(255, 92, 122, 0.8);
+    animation: pulse 1s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
   }
 
   @keyframes fadeIn {
@@ -1548,5 +1656,59 @@
 
   .close-analysis-btn:hover {
     background: #3a4560;
+  }
+
+  .ping-indicator {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    border: 1px solid;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    z-index: 100;
+  }
+
+  .ping-icon {
+    font-size: 10px;
+  }
+
+  .connection-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(11, 16, 32, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .connection-lost {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  .conn-icon {
+    font-size: 48px;
+  }
+
+  .conn-text {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px;
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
   }
 </style>

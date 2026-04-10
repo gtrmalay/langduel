@@ -156,6 +156,25 @@ func readPump(c *Client) {
 			}
 			log.Printf("WS answer: room=%s user=%s", msg.RoomID, msg.UserID)
 			handleAnswer(c, msg)
+		case "ping":
+			// Respond with pong
+			pong := duel.Message{
+				Type: "pong",
+				Ts:   msg.Ts,
+			}
+			data, _ := json.Marshal(pong)
+			select {
+			case c.send <- data:
+			default:
+			}
+		case "next_round":
+			// Player requesting to continue after halftime
+			log.Printf("WS next_round: room=%s user=%s", msg.RoomID, msg.UserID)
+			handleNextRound(c, msg)
+		case "leave":
+			// Player leaving the room
+			log.Printf("WS leave: room=%s user=%s", msg.RoomID, msg.UserID)
+			handleLeave(c, msg)
 		default:
 			sendError(c, msg.RoomID, "unknown message type")
 		}
@@ -616,6 +635,56 @@ func handleAnswer(c *Client, msg duel.Message) {
 		}
 		broadcastRoom(c.hub, c.roomID, ev)
 	}
+}
+
+func handleNextRound(c *Client, msg duel.Message) {
+	if c.roomID == "" {
+		sendError(c, msg.RoomID, "join room first")
+		return
+	}
+
+	if c.displayName != "" {
+		msg.UserID = c.displayName
+	}
+
+	events, err := mgr.ContinueAfterHalftime(c.roomID, msg.UserID)
+	if err != nil {
+		sendError(c, c.roomID, err.Error())
+		return
+	}
+
+	for _, ev := range events {
+		if ev.Type == "round_start" {
+			scheduleRoundTimeout(ev.RoomID, ev.RoundToken)
+		}
+		broadcastRoom(c.hub, c.roomID, ev)
+	}
+}
+
+func handleLeave(c *Client, msg duel.Message) {
+	if c.roomID == "" {
+		return
+	}
+
+	roomID := c.roomID
+	userID := c.displayName
+	if userID == "" {
+		userID = msg.UserID
+	}
+
+	log.Printf("handleLeave: room=%s user=%s", roomID, userID)
+
+	// Delete pending duel if exists
+	if repo != nil {
+		if err := repo.DeletePendingDuel(context.Background(), roomID); err != nil {
+			log.Printf("DB DeletePendingDuel error: %v", err)
+		} else {
+			log.Printf("DB Deleted pending duel for room: %s", roomID)
+		}
+	}
+
+	// Close client connection - this will trigger cleanup
+	c.hub.unregister <- c
 }
 
 func broadcastRoom(h *Hub, roomID string, ev duel.Event) {

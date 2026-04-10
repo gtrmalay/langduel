@@ -14,6 +14,7 @@
     duel.init();
     const params = new URLSearchParams(window.location.search);
     next = params.get('next') || '/play';
+    console.log('[AUTH] next =', next);
   });
 
   async function doLogin() {
@@ -37,6 +38,7 @@
   }
 
   function chooseGuest() {
+    console.log('[AUTH] chooseGuest, going to:', next);
     duel.selectGuest();
     goto(next);
   }

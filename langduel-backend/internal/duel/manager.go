@@ -2,6 +2,7 @@ package duel
 
 import (
 	"errors"
+	"log"
 	"strings"
 	"sync"
 )
@@ -17,9 +18,11 @@ var (
 )
 
 const (
-	MaxPlayers = 2
-	StartingHP = 100
-	MaxRounds  = 20
+	MaxPlayers          = 2
+	StartingHP          = 100
+	MaxRounds           = 20
+	HalfSize            = 10
+	HalftimeDurationSec = 8
 )
 
 type Event struct {
@@ -27,6 +30,7 @@ type Event struct {
 	RoomID        string            `json:"room_id"`
 	DuelID        string            `json:"duel_id,omitempty"`
 	Round         int               `json:"round"`
+	Half          int               `json:"half,omitempty"`
 	RoundToken    int               `json:"round_token,omitempty"`
 	TotalPhrases  int               `json:"total_phrases,omitempty"`
 	Topic         string            `json:"topic,omitempty"`
@@ -218,7 +222,31 @@ func (m *Manager) SubmitAnswer(roomID, userID, answer string, speed int) ([]Even
 
 	if correct {
 		hasNext := room.HasMorePhrasesLocked()
+
+		// Check if we need halftime (BEFORE starting next round - after round 10)
+		needsHalftime := room.Round == HalfSize && room.Round < MaxRounds && hasNext
+
+		log.Printf("HALFTIME CHECK: Round=%d HalfSize=%d MaxRounds=%d hasNext=%v needsHalftime=%v",
+			room.Round, HalfSize, MaxRounds, hasNext, needsHalftime)
+
 		room.startRoundLocked()
+
+		if needsHalftime {
+			// Send halftime event instead of immediate round start
+			events = append(events, Event{
+				Type:          "halftime",
+				RoomID:        room.ID,
+				DuelID:        room.DuelID,
+				Round:         room.Round, // now 11
+				Half:          2,
+				TotalPhrases:  room.GetTotalPhrasesLocked(),
+				HP:            room.hpMapLocked(),
+				Prompt:        "⏸ HALF TIME ⏸",
+				CorrectAnswer: "",
+			})
+			return events, nil
+		}
+
 		if !hasNext {
 			events = append(events, Event{
 				Type:         "game_over",
@@ -314,7 +342,28 @@ func (m *Manager) RoundTimeout(roomID string, expectedToken int) ([]Event, error
 	}}
 
 	hasNext := room.HasMorePhrasesLocked()
+
+	// Check if we need halftime (BEFORE starting next round - after round 10)
+	needsHalftime := room.Round == HalfSize && room.Round < MaxRounds && hasNext
+
 	room.startRoundLocked()
+
+	if needsHalftime {
+		// Send halftime event instead of immediate round start
+		events = append(events, Event{
+			Type:          "halftime",
+			RoomID:        room.ID,
+			DuelID:        room.DuelID,
+			Round:         room.Round, // now 11
+			Half:          2,
+			TotalPhrases:  room.GetTotalPhrasesLocked(),
+			HP:            room.hpMapLocked(),
+			Prompt:        "⏸ HALF TIME ⏸",
+			CorrectAnswer: "",
+		})
+		return events, nil
+	}
+
 	if !hasNext {
 		winnerID := room.determineWinnerByHP()
 		correctCount, wrongCount := room.GetPlayerStats()
@@ -397,6 +446,35 @@ func (m *Manager) SetDuelID(roomID, duelID string) bool {
 	}
 	room.SetDuelID(duelID)
 	return true
+}
+
+// ContinueAfterHalftime starts the next round after halftime pause
+func (m *Manager) ContinueAfterHalftime(roomID, userID string) ([]Event, error) {
+	room, err := m.getRoom(roomID)
+	if err != nil {
+		return nil, ErrRoomNotFound
+	}
+	if _, ok := room.Players[userID]; !ok {
+		return nil, ErrNotInRoom
+	}
+
+	room.mu.Lock()
+	defer room.mu.Unlock()
+
+	if !room.Started {
+		return nil, ErrNotStarted
+	}
+
+	// Check if we're actually at the right point (round 11, waiting for halftime)
+	if room.Round != HalfSize+1 {
+		return nil, errors.New("not at halftime")
+	}
+
+	// Start next round
+	room.startRoundLocked()
+
+	events := []Event{room.roundStartEventLocked()}
+	return events, nil
 }
 
 // normalize: trim + lowercase перед сравнением.

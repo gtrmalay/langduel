@@ -10,4 +10,5 @@ type Message struct {
 	Answer     string `json:"answer"`
 	Speed      int    `json:"speed"`
 	Avatar     string `json:"avatar,omitempty"`
+	Ts         int64  `json:"ts,omitempty"`
 }
