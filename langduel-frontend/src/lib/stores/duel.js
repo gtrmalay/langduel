@@ -473,25 +473,27 @@ function connectAndJoin() {
       ensurePlayers(data.players);
       applyHP(data.hp);
       const opponentName = data.players.find(p => p !== get(state).currentUser);
-      if (opponentName && data.avatars) {
-        const opponentAvatar = data.avatars[opponentName];
-        if (opponentAvatar && opponentAvatar !== 'guest') {
-          setState({ opponentAvatar: opponentAvatar });
+      if (opponentName) {
+        if (data.avatars) {
+          const opponentAvatar = data.avatars[opponentName];
+          if (opponentAvatar && opponentAvatar !== 'guest') {
+            setState({ opponentAvatar: opponentAvatar });
+          } else {
+            setState({ opponentAvatar: 'default' });
+          }
         } else {
-          setState({ opponentAvatar: 'default' });
+          const isGuest = opponentName.toLowerCase().includes('guest');
+          if (isGuest) {
+            setState({ opponentAvatar: 'default' });
+          } else {
+            const avatars = ['knight', 'wizard', 'archer', 'dragon', 'skull', 'fire', 'ice', 'lightning', 'sword', 'potion', 'crown', 'star', 'moon'];
+            const hash = opponentName.split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0);
+            const avatarIndex = Math.abs(hash) % avatars.length;
+            setState({ opponentAvatar: avatars[avatarIndex] });
+          }
         }
-      } else if (opponentName) {
-        const isGuest = opponentName.toLowerCase().includes('guest');
-        if (isGuest) {
-          setState({ opponentAvatar: 'default' });
-        } else {
-          const avatars = ['knight', 'wizard', 'archer', 'dragon', 'skull', 'fire', 'ice', 'lightning', 'sword', 'potion', 'crown', 'star', 'moon'];
-          const hash = opponentName.split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0);
-          const avatarIndex = Math.abs(hash) % avatars.length;
-          setState({ opponentAvatar: avatars[avatarIndex] });
-        }
+        setState({ lobbyText: 'lobby.opponentJoined' });
       }
-      setState({ lobbyText: 'lobby.opponentJoined' });
     }
 
     if (data.type === 'player_left') {

@@ -106,7 +106,13 @@
   </div>
 
   <div class="status-text">
-    {$duel.lobbyText || $_('lobby.waiting')}
+    {#if $duel.lobbyText === 'lobby.opponentJoined'}
+      {$_('lobby.opponentJoined')}
+    {:else if $duel.lobbyText === 'lobby.waiting'}
+      {$_('lobby.waiting')}
+    {:else}
+      {$duel.lobbyText || $_('lobby.waiting')}
+    {/if}
   </div>
 
   <div class="leave-section">
