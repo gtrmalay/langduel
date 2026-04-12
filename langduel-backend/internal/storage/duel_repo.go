@@ -303,7 +303,7 @@ func (r *DuelRepo) EnsureParticipant(ctx context.Context, duelID, userID string,
 		`INSERT INTO duel_participants (duel_id, user_id, player_order)
          VALUES ($1, $2, $3)
          ON CONFLICT (duel_id, user_id) DO UPDATE SET player_order = EXCLUDED.player_order
-         RETURNING id, duel_id, user_id, player_order`,
+         RETURNING participant_id, duel_id, user_id, player_order`,
 		duelID, userID, playerOrder,
 	)
 	var p Participant
