@@ -40,8 +40,8 @@ services:
   # Frontend (built inside Docker)
   frontend:
     build:
-      context: .
-      dockerfile: langduel-frontend/Dockerfile
+      context: ./langduel-frontend
+      dockerfile: Dockerfile
     container_name: langduel-frontend
     restart: unless-stopped
     ports:
