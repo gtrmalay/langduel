@@ -19,8 +19,11 @@
   export let answer = '';
   export let hitA = false;
 
-  $: translatedPromptText = promptText && promptText.startsWith('lobby.') ? $_(promptText) : promptText;
-  $: translatedRoundInfo = roundInfo && roundInfo.startsWith('battle.') ? $_(roundInfo) : roundInfo;
+  function translateKey(key) {
+    if (key && key.startsWith('lobby.') && key === 'lobby.waiting') return $_('lobby.waiting');
+    if (key && key.startsWith('battle.') && key === 'battle.playerLeft') return $_('battle.playerLeft');
+    return key;
+  }
   export let hitB = false;
   export let lastDamage = 0;
   export let lastDamageTo = '';
@@ -151,7 +154,8 @@
 
   function triggerRoundAnnounce() {
     // Check if it's halftime
-    if (translatedRoundInfo && (translatedRoundInfo.includes('HALFTIME') || translatedRoundInfo.includes('Half 2'))) {
+    const translatedRI = translateKey(roundInfo);
+    if (translatedRI && (translatedRI.includes('HALFTIME') || translatedRI.includes('Half 2'))) {
       announceRound = 'HALF 2';
       showRoundAnnounce = true;
       
@@ -290,11 +294,11 @@
   })();
   
   // Check if we're in halftime (input disabled)
-  $: isHalftime = translatedRoundInfo && (translatedRoundInfo.includes('HALFTIME') || translatedRoundInfo.includes('Half 2'));
+  $: isHalftime = roundInfo && (roundInfo.includes('HALFTIME') || roundInfo.includes('Half 2'));
   $: inputDisabled = isHalftime || gameOverOpen;
   
   // Combined round display
-  $: roundDisplay = translatedRoundInfo ? translatedRoundInfo + (currentHalf ? ` (Half ${currentHalf}/2)` : '') : $_('battle.round').toUpperCase();
+  $: roundDisplay = translateKey(roundInfo) ? translateKey(roundInfo) + (currentHalf ? ` (Half ${currentHalf}/2)` : '') : $_('battle.round').toUpperCase();
 </script>
 
 <div class="battle-container" class:shake={screenShake}>
@@ -408,7 +412,7 @@
       {#if showPromptTyping}
         <div class="prompt-text">{typedPrompt}<span class="cursor">|</span></div>
       {:else}
-        <div class="prompt-text">{translatedPromptText || $_('lobby.waiting')}</div>
+        <div class="prompt-text">{translateKey(promptText) || $_('lobby.waiting')}</div>
       {/if}
       <div class="prompt-hint">{$_('battle.translate')}</div>
     </div>

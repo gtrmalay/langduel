@@ -258,7 +258,7 @@
         topic: currentTopic
       };
       ws.send(JSON.stringify(msg));
-      lobbyText = $_('lobby.waiting');
+      lobbyText = 'lobby.waiting';
       showScreen('lobby');
       if (window.location.pathname !== '/lobby') {
         goto(`/lobby?room=${encodeURIComponent(currentRoom)}`);
@@ -306,14 +306,14 @@
       if (data.type === 'player_joined') {
         ensurePlayers(data.players);
         applyHP(data.hp);
-        lobbyText = $_('lobby.opponentJoined');
+        lobbyText = 'lobby.opponentJoined';
       }
 
       if (data.type === 'player_left') {
         ensurePlayers(data.players);
         applyHP(data.hp);
-        promptText = $_('lobby.waiting');
-        roundInfo = $_('battle.playerLeft');
+        promptText = 'lobby.waiting';
+        roundInfo = 'battle.playerLeft';
         stopCountdown();
         showScreen('lobby');
       }
