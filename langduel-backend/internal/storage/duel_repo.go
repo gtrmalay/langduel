@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -1565,6 +1566,10 @@ func (r *DuelRepo) GetDuelAnalysis(ctx context.Context, duelID string) (*DuelAna
 	for _, ra := range roundMap {
 		analysis.Rounds = append(analysis.Rounds, ra)
 	}
+
+	sort.Slice(analysis.Rounds, func(i, j int) bool {
+		return analysis.Rounds[i].RoundNumber < analysis.Rounds[j].RoundNumber
+	})
 
 	return analysis, nil
 }
