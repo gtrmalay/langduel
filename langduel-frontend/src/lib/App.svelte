@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { _ } from 'svelte-i18n';
   import ProfilePanel from '$lib/components/ProfilePanel.svelte';
   import StartPanel from '$lib/components/StartPanel.svelte';
   import LobbyPanel from '$lib/components/LobbyPanel.svelte';
@@ -52,7 +53,7 @@
   let currentLang = 'en';
   let currentTopic = 'default';
 
-  let lobbyText = 'Waiting for opponent...';
+  let lobbyText = '';
   let lobbyCopyNote = '';
   let createCopyNote = '';
   let reconnectNote = '';
@@ -257,7 +258,7 @@
         topic: currentTopic
       };
       ws.send(JSON.stringify(msg));
-      lobbyText = 'Waiting for opponent...';
+      lobbyText = $_('lobby.waiting');
       showScreen('lobby');
       if (window.location.pathname !== '/lobby') {
         goto(`/lobby?room=${encodeURIComponent(currentRoom)}`);
@@ -305,14 +306,14 @@
       if (data.type === 'player_joined') {
         ensurePlayers(data.players);
         applyHP(data.hp);
-        lobbyText = 'Opponent joined. Starting...';
+        lobbyText = $_('lobby.opponentJoined');
       }
 
       if (data.type === 'player_left') {
         ensurePlayers(data.players);
         applyHP(data.hp);
-        promptText = 'Waiting for opponent...';
-        roundInfo = 'Player left';
+        promptText = $_('lobby.waiting');
+        roundInfo = $_('battle.playerLeft');
         stopCountdown();
         showScreen('lobby');
       }

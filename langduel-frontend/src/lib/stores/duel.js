@@ -35,7 +35,7 @@ const initialState = {
   currentLang: 'en',
   currentTopic: 'default',
   currentDifficulty: 'intermediate',
-  lobbyText: 'Waiting for opponent...',
+  lobbyText: 'lobby.waiting',
   lobbyCopyNote: '',
   createCopyNote: '',
   reconnectNote: '',
@@ -387,7 +387,7 @@ function connectAndJoin() {
   ws.onopen = () => {
     setState({ 
       status: 'Connected', 
-      lobbyText: 'Waiting for opponent...',
+      lobbyText: 'lobby.waiting',
       connectionStatus: 'connected',
       ping: -1
     });
@@ -491,13 +491,13 @@ function connectAndJoin() {
           setState({ opponentAvatar: avatars[avatarIndex] });
         }
       }
-      setState({ lobbyText: 'Opponent joined. Starting...' });
+      setState({ lobbyText: 'lobby.opponentJoined' });
     }
 
     if (data.type === 'player_left') {
       ensurePlayers(data.players);
       applyHP(data.hp);
-      setState({ promptText: 'Waiting for opponent...', roundInfo: 'Player left' });
+      setState({ promptText: 'lobby.waiting', roundInfo: 'battle.playerLeft' });
       stopCountdown();
       goto(`/lobby?room=${encodeURIComponent(get(state).currentRoom)}`);
     }
