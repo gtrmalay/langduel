@@ -1,5 +1,5 @@
 <script>
-  import { _, locale, isLoading } from 'svelte-i18n';
+  import { _ } from 'svelte-i18n';
   
   export let lobbyText = '';
   export let isCreator = false;
@@ -7,18 +7,19 @@
   export let lobbyCopyNote = '';
   export let buildRoomLink = () => '';
   export let onCopy = () => {};
-
-  $: displayText = (() => {
-    if (!lobbyText) return '';
-    if (lobbyText === 'lobby.waiting') return $_('lobby.waiting');
-    if (lobbyText === 'lobby.opponentJoined') return $_('lobby.opponentJoined');
-    return lobbyText;
-  })();
 </script>
 
 <div class="panel">
   <h3>Lobby</h3>
-  <div class="small">{displayText || $_('lobby.waiting')}</div>
+  <div class="small">
+    {#if lobbyText === 'lobby.waiting'}
+      {$_('lobby.waiting')}
+    {:else if lobbyText === 'lobby.opponentJoined'}
+      {$_('lobby.opponentJoined')}
+    {:else}
+      {lobbyText || $_('lobby.waiting')}
+    {/if}
+  </div>
   {#if isCreator}
     <div class="controls two">
       <div class="link">Room link: <span>{currentRoom ? buildRoomLink(currentRoom) : '-'}</span></div>
