@@ -51,6 +51,7 @@
     gameOverText={$duel.gameOverText}
     gameOverHP={$duel.gameOverHP}
     gameOverReason={$duel.gameOverReason}
+    isGameWinner={$duel.isGameWinner}
     duelId={$duel.currentDuelId || ''}
     connectionStatus={$duel.connectionStatus}
     ping={$duel.ping}

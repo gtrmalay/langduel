@@ -60,6 +60,7 @@ const initialState = {
   gameOverText: 'Game over',
   gameOverHP: '-',
   gameOverReason: '',
+  isGameWinner: null,
   eloChange: {},
   currentDuelId: '',
   profileUser: '-',
@@ -661,7 +662,8 @@ function connectAndJoin() {
         gameOverOpen: true,
         gameOverText: gameText + eloInfo,
         gameOverHP: 'Final HP - ' + a + ' | ' + b,
-        gameOverReason: reasonText
+        gameOverReason: reasonText,
+        isGameWinner: isWinner
       });
     }
   };

@@ -29,6 +29,7 @@
   export let gameOverText = '';
   export let gameOverHP = '';
   export let gameOverReason = '';
+  export let isGameWinner = null;
   export let duelId = '';
   export let connectionStatus = 'disconnected';
   export let ping = -1;
@@ -436,8 +437,10 @@
 
   {#if gameOverOpen}
     <div class="game-over-overlay">
-      <div class="game-over-modal">
-        <div class="game-over-title">{$_('battle.quit').toUpperCase()}</div>
+      <div class="game-over-modal" class:winner={isGameWinner} class:loser={isGameWinner === false}>
+        <div class="game-over-title" class:win={isGameWinner} class:lose={isGameWinner === false}>
+          {isGameWinner ? 'VICTORY!' : isGameWinner === false ? 'DEFEAT' : 'GAME OVER'}
+        </div>
         <div class="game-over-result">{gameOverText}</div>
         {#if gameOverReason}
           <div class="game-over-reason">{gameOverReason}</div>
@@ -1335,6 +1338,17 @@
     max-width: 420px;
     width: 90%;
     animation: scaleIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transition: all 0.3s ease;
+  }
+
+  .game-over-modal.winner {
+    border-color: var(--accent);
+    box-shadow: 0 0 80px rgba(37, 244, 183, 0.5);
+  }
+
+  .game-over-modal.loser {
+    border-color: var(--danger);
+    box-shadow: 0 0 80px rgba(255, 92, 122, 0.4);
   }
 
   @keyframes scaleIn {
@@ -1344,15 +1358,39 @@
 
   .game-over-title {
     font-family: "Press Start 2P", cursive;
-    font-size: 24px;
+    font-size: 28px;
     color: var(--accent-2);
     margin-bottom: 20px;
     animation: titleGlow 2s ease-in-out infinite;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+
+  .game-over-title.win {
+    color: var(--accent);
+    animation: winGlow 1s ease-in-out infinite;
+    font-size: 36px;
+  }
+
+  .game-over-title.lose {
+    color: var(--danger);
+    animation: loseGlow 1.5s ease-in-out infinite;
+    font-size: 36px;
   }
 
   @keyframes titleGlow {
     0%, 100% { text-shadow: 0 0 20px rgba(246, 193, 68, 0.5); }
     50% { text-shadow: 0 0 40px rgba(246, 193, 68, 0.8); }
+  }
+
+  @keyframes winGlow {
+    0%, 100% { text-shadow: 0 0 30px rgba(37, 244, 183, 0.6); }
+    50% { text-shadow: 0 0 60px rgba(37, 244, 183, 1); }
+  }
+
+  @keyframes loseGlow {
+    0%, 100% { text-shadow: 0 0 20px rgba(255, 92, 122, 0.4); }
+    50% { text-shadow: 0 0 40px rgba(255, 92, 122, 0.7); }
   }
 
   .game-over-result {
