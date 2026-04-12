@@ -37,16 +37,15 @@ services:
       db:
         condition: service_healthy
 
-  # Nginx + Frontend
+  # Frontend (built inside Docker)
   frontend:
-    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: langduel-frontend/Dockerfile
     container_name: langduel-frontend
     restart: unless-stopped
     ports:
       - "80:80"
-    volumes:
-      - ./langduel-frontend:/usr/share/nginx/html:ro
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - backend
 
