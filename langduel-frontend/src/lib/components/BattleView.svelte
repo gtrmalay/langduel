@@ -439,7 +439,7 @@
     <div class="game-over-overlay">
       <div class="game-over-modal" class:winner={isGameWinner} class:loser={isGameWinner === false}>
         <div class="game-over-title" class:win={isGameWinner} class:lose={isGameWinner === false}>
-          {isGameWinner ? 'VICTORY!' : isGameWinner === false ? 'DEFEAT' : 'GAME OVER'}
+          {isGameWinner ? $_('battle.winner') : isGameWinner === false ? $_('battle.defeat') : $_('battle.gameOver')}
         </div>
         <div class="game-over-result">{gameOverText}</div>
         {#if gameOverReason}
@@ -478,7 +478,7 @@
       <div class="analysis-modal" on:click|stopPropagation>
         <h3 class="analysis-title">📊 {$_('gameOver.duelAnalysis') || 'DUEL ANALYSIS'}</h3>
         {#if loadingAnalysis}
-          <div class="loading">Loading...</div>
+          <div class="loading">{$_('leaderboard.loading')}</div>
         {:else if analysisData && analysisData.rounds && analysisData.rounds.length > 0}
           <div class="analysis-content">
             {#if analysisData.participants && analysisData.participants.length > 0}
@@ -499,11 +499,11 @@
                 <div class="round-card">
                   <div class="round-header">
                     <span class="round-number">#{round.round_number || i + 1}</span>
-                    <span class="round-phrase">{round.phrase || 'Unknown phrase'}</span>
+                    <span class="round-phrase">{round.phrase || $_('battle.unknownPhrase')}</span>
                   </div>
                   {#if round.correct_answer}
                     <div class="correct-answer">
-                      <span class="correct-label">Correct:</span>
+                      <span class="correct-label">{$_('analysis.correctAnswer')}:</span>
                       <span class="correct-value">{round.correct_answer}</span>
                     </div>
                   {/if}
@@ -529,10 +529,10 @@
             </div>
           </div>
         {:else}
-          <div class="no-analysis">
-            <p>📊 No analysis available</p>
-            <p class="no-analysis-hint">Analysis will be available after registered matches</p>
-          </div>
+            <div class="no-analysis">
+              <p>📊 {$_('analysis.noAnalysis')}</p>
+              <p class="no-analysis-hint">{$_('analysis.analysisWillBeAvailable')}</p>
+            </div>
         {/if}
         <button class="close-analysis-btn" on:click={() => showAnalysis = false}>{$_('gameOver.close').toUpperCase() || 'CLOSE'}</button>
       </div>

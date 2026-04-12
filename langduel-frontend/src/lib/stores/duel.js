@@ -753,7 +753,7 @@ async function syncAuthFromToken() {
               }
             }
             const created = d.created_at ? new Date(d.created_at).toLocaleString() : '-';
-            const opponent = d.opponent_username ? `vs ${d.opponent_username}` : 'Waiting for opponent';
+            const opponentName = d.opponent_username || null;
             return {
               duelId: d.duel_id || '',
               room: d.room_code || '-',
@@ -761,7 +761,7 @@ async function syncAuthFromToken() {
               created,
               badgeClass,
               resultLabel,
-              opponent
+              opponentName
             };
           });
           setState({ profileDuelsCount: String(list.length || 0), profileDuelsList: mapped });

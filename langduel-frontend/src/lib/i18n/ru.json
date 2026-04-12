@@ -48,7 +48,8 @@
     "waitingOpponent": "ОЖИДАНИЕ",
     "opponentJoined": "Соперник присоединился. Начинаем...",
     "leave": "ПОКИНУТЬ",
-    "confirmLeave": "ПОДТВЕРДИТЬ ВЫХОД"
+    "confirmLeave": "ПОДТВЕРДИТЬ ВЫХОД",
+    "vs": "vs {player}"
   },
   "battle": {
     "translate": "переведи",
@@ -59,7 +60,15 @@
     "round": "Раунд",
     "correct": "Верно",
     "wrong": "Неверно",
-    "damage": "Урон"
+    "damage": "Урон",
+    "winner": "ПОБЕДА!",
+    "defeat": "ПОРАЖЕНИЕ",
+    "gameOver": "ИГРА ОКОНЧЕНА",
+    "finalHP": "Финал HP",
+    "playerLeft": "Игрок вышел",
+    "unknownPhrase": "Неизвестная фраза",
+    "halftime": "ПЕРЕРЫВ",
+    "halftimeBreak": "Перерыв перед вторым таймом..."
   },
   "gameOver": {
     "victory": "ПОБЕДА!",
@@ -178,6 +187,11 @@
     "playNow": "ИГРАТЬ",
     "games": "ИГР",
     "elo": "ELO"
+  },
+  "analysis": {
+    "noAnalysis": "Анализ недоступен",
+    "analysisWillBeAvailable": "Анализ будет доступен после завершённых игр",
+    "correctAnswer": "Правильный ответ"
   },
   "rank": {
     "newbie": "Новичок",

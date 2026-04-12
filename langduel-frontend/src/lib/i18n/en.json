@@ -48,7 +48,8 @@
     "waitingOpponent": "WAITING",
     "opponentJoined": "Opponent joined. Starting...",
     "leave": "LEAVE LOBBY",
-    "confirmLeave": "CONFIRM LEAVE"
+    "confirmLeave": "CONFIRM LEAVE",
+    "vs": "vs {player}"
   },
   "battle": {
     "translate": "translate this",
@@ -59,7 +60,15 @@
     "round": "Round",
     "correct": "Correct",
     "wrong": "Wrong",
-    "damage": "Damage"
+    "damage": "Damage",
+    "winner": "VICTORY!",
+    "defeat": "DEFEAT",
+    "gameOver": "GAME OVER",
+    "finalHP": "Final HP",
+    "playerLeft": "Player left",
+    "unknownPhrase": "Unknown phrase",
+    "halftime": "HALFTIME",
+    "halftimeBreak": "Break before second half..."
   },
   "gameOver": {
     "victory": "VICTORY!",
@@ -178,6 +187,11 @@
     "playNow": "PLAY NOW",
     "games": "GAMES",
     "elo": "ELO"
+  },
+  "analysis": {
+    "noAnalysis": "No analysis available",
+    "analysisWillBeAvailable": "Analysis will be available after registered matches",
+    "correctAnswer": "Correct"
   },
   "rank": {
     "newbie": "Newbie",

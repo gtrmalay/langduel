@@ -36,7 +36,7 @@
         {#each profileDuelsList as d}
           <div class="duel-card">
             <div class="duel-row">
-              <span>{d.opponent}</span>
+              <span>{d.opponentName ? $_('lobby.vs', { values: { player: d.opponentName } }) : $_('lobby.waiting')}</span>
               <span class={`badge ${d.badgeClass}`}>{d.resultLabel}</span>
             </div>
             <div class="duel-row">

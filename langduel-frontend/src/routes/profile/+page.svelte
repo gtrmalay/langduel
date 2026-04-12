@@ -412,7 +412,7 @@
                   {d.resultLabel}
                 </div>
                 <div class="game-info">
-                  <span class="game-opponent">{d.opponent}</span>
+                  <span class="game-opponent">{d.opponentName ? $_('lobby.vs', { values: { player: d.opponentName } }) : $_('lobby.waiting')}</span>
                   <span class="game-date">{d.created}</span>
                 </div>
               </div>

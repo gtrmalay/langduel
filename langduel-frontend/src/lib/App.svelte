@@ -510,14 +510,14 @@
                 }
               }
               const created = d.created_at ? new Date(d.created_at).toLocaleString() : '-';
-              const opponent = d.opponent_username ? `vs ${d.opponent_username}` : 'Waiting for opponent';
+              const opponentName = d.opponent_username || null;
               return {
                 room: d.room_code || '-',
                 status,
                 created,
                 badgeClass,
                 resultLabel,
-                opponent
+                opponentName
               };
             });
           }
