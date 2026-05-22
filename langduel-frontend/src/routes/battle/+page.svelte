@@ -9,8 +9,18 @@
   $: playerA = $duel.playerA || '';
   $: playerB = $duel.playerB || '';
   $: isPlayerA = currentUser && playerA === currentUser;
-  $: playerAAvatar = isPlayerA ? ($duel.userAvatar || 'default') : ($duel.opponentAvatar || 'default');
-  $: playerBAvatar = isPlayerA ? ($duel.opponentAvatar || 'default') : ($duel.userAvatar || 'default');
+
+  // "я" всегда слева (left), соперник — справа (right)
+  $: leftPlayer  = isPlayerA ? playerA : playerB;
+  $: rightPlayer = isPlayerA ? playerB : playerA;
+  $: leftAvatar  = $duel.userAvatar    || 'default';
+  $: rightAvatar = $duel.opponentAvatar || 'default';
+  $: leftHit     = isPlayerA ? $duel.hitA    : $duel.hitB;
+  $: rightHit    = isPlayerA ? $duel.hitB    : $duel.hitA;
+  $: leftAttack  = isPlayerA ? $duel.attackA : $duel.attackB;
+  $: rightAttack = isPlayerA ? $duel.attackB : $duel.attackA;
+  $: leftDamage  = isPlayerA ? $duel.playerADamage : $duel.playerBDamage;
+  $: rightDamage = isPlayerA ? $duel.playerBDamage : $duel.playerADamage;
 
   $: ping = $duel.ping;
   $: pingColor = ping < 0 ? '#ff5c7a' : ping < 100 ? '#25f4b7' : ping < 300 ? '#f6c144' : '#ff5c7a';
@@ -28,10 +38,10 @@
 
 <div class="battle-wrap">
   <BattleView
-    playerA={playerA}
-    playerB={playerB}
-    playerAEmoji={playerAAvatar}
-    playerBEmoji={playerBAvatar}
+    playerA={leftPlayer}
+    playerB={rightPlayer}
+    playerAEmoji={leftAvatar}
+    playerBEmoji={rightAvatar}
     hp={$duel.hp}
     promptText={$duel.promptText}
     timerText={$duel.timerText}
@@ -39,16 +49,16 @@
     correctCount={$duel.correctCount}
     wrongCount={$duel.wrongCount}
     totalDamage={$duel.totalDamage}
-    playerADamage={$duel.playerADamage}
-    playerBDamage={$duel.playerBDamage}
+    playerADamage={leftDamage}
+    playerBDamage={rightDamage}
     avgSpeedValue={duel.avgSpeed()}
     bind:answer
-    hitA={$duel.hitA}
-    hitB={$duel.hitB}
+    hitA={leftHit}
+    hitB={rightHit}
     lastDamage={$duel.lastDamage}
     lastDamageTo={$duel.lastDamageTo}
-    attackA={$duel.attackA}
-    attackB={$duel.attackB}
+    attackA={leftAttack}
+    attackB={rightAttack}
     inputCorrect={$duel.inputCorrect}
     inputWrong={$duel.inputWrong}
     gameOverOpen={$duel.gameOverOpen}
