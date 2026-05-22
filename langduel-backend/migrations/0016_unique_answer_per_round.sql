@@ -1,0 +1,1 @@
+ALTER TABLE player_answers ADD UNIQUE IF NOT EXISTS (round_id, participant_id);

@@ -10,11 +10,12 @@ import (
 // Manager управляет всеми комнатами и игровым потоком.
 // Здесь единственное место, где изменяется состояние комнат.
 var (
-	GlobalManager   = NewManager()
-	ErrRoomFull     = errors.New("room is full")
-	ErrRoomNotFound = errors.New("room not found")
-	ErrNotInRoom    = errors.New("player not in room")
-	ErrNotStarted   = errors.New("room not started")
+	GlobalManager        = NewManager()
+	ErrRoomFull          = errors.New("room is full")
+	ErrRoomNotFound      = errors.New("room not found")
+	ErrNotInRoom         = errors.New("player not in room")
+	ErrNotStarted        = errors.New("room not started")
+	ErrRoundTokenMismatch = errors.New("round token mismatch")
 )
 
 const (
@@ -54,6 +55,7 @@ type Event struct {
 	EloChange     map[string]int    `json:"elo_change,omitempty"`
 	CorrectCount  map[string]int    `json:"correct_count,omitempty"`
 	WrongCount    map[string]int    `json:"wrong_count,omitempty"`
+	UserID        string            `json:"user_id,omitempty"`
 }
 
 type Manager struct {
@@ -129,6 +131,20 @@ func (m *Manager) Join(roomID, userID, topic, difficulty, lang, avatar string) (
 	return events, nil
 }
 
+// GetRoom returns the room if the user is a member
+func (m *Manager) GetRoom(roomID, userID string) (*Room, error) {
+	room, err := m.getRoom(roomID)
+	if err != nil {
+		return nil, ErrRoomNotFound
+	}
+	room.mu.Lock()
+	defer room.mu.Unlock()
+	if _, ok := room.Players[userID]; !ok {
+		return nil, ErrNotInRoom
+	}
+	return room, nil
+}
+
 // GetRoomSnapshot возвращает текущее состояние комнаты для reconnect
 func (m *Manager) GetRoomSnapshot(roomID, userID string) ([]Event, error) {
 	room, err := m.getRoom(roomID)
@@ -143,7 +159,7 @@ func (m *Manager) GetRoomSnapshot(roomID, userID string) ([]Event, error) {
 
 // SubmitAnswer проверяет ответ, применяет урон и
 // возвращает события для рассылки.
-func (m *Manager) SubmitAnswer(roomID, userID, answer string, speed int) ([]Event, error) {
+func (m *Manager) SubmitAnswer(roomID, userID, answer string, speed int, roundToken int) ([]Event, error) {
 	room, err := m.getRoom(roomID)
 	if err != nil {
 		return nil, err
@@ -154,6 +170,10 @@ func (m *Manager) SubmitAnswer(roomID, userID, answer string, speed int) ([]Even
 
 	if !room.Started {
 		return nil, ErrNotStarted
+	}
+
+	if roundToken != room.RoundToken {
+		return nil, ErrRoundTokenMismatch
 	}
 
 	attacker, ok := room.Players[userID]
@@ -181,6 +201,7 @@ func (m *Manager) SubmitAnswer(roomID, userID, answer string, speed int) ([]Even
 		Type:       "update",
 		RoomID:     room.ID,
 		Round:      room.Round,
+		RoundToken: room.RoundToken,
 		HP:         room.hpMapLocked(),
 		AttackerID: attacker.ID,
 		DefenderID: defender.ID,
@@ -229,6 +250,21 @@ func (m *Manager) SubmitAnswer(roomID, userID, answer string, speed int) ([]Even
 		log.Printf("HALFTIME CHECK: Round=%d HalfSize=%d MaxRounds=%d hasNext=%v needsHalftime=%v",
 			room.Round, HalfSize, MaxRounds, hasNext, needsHalftime)
 
+		if !hasNext {
+			events = append(events, Event{
+				Type:         "game_over",
+				RoomID:       room.ID,
+				DuelID:       room.DuelID,
+				HP:           room.hpMapLocked(),
+				Elo:          room.eloMapLocked(),
+				WinnerID:     attacker.ID,
+				CorrectCount: correctCount,
+				WrongCount:   wrongCount,
+				Reason:       "phrases_exhausted",
+			})
+			return events, nil
+		}
+
 		room.startRoundLocked()
 
 		if needsHalftime {
@@ -247,20 +283,6 @@ func (m *Manager) SubmitAnswer(roomID, userID, answer string, speed int) ([]Even
 			return events, nil
 		}
 
-		if !hasNext {
-			events = append(events, Event{
-				Type:         "game_over",
-				RoomID:       room.ID,
-				DuelID:       room.DuelID,
-				HP:           room.hpMapLocked(),
-				Elo:          room.eloMapLocked(),
-				WinnerID:     attacker.ID,
-				CorrectCount: correctCount,
-				WrongCount:   wrongCount,
-				Reason:       "phrases_exhausted",
-			})
-			return events, nil
-		}
 		events = append(events, room.roundStartEventLocked())
 	}
 	// Wrong answer: just apply self-damage, don't start new round
@@ -269,21 +291,117 @@ func (m *Manager) SubmitAnswer(roomID, userID, answer string, speed int) ([]Even
 	return events, nil
 }
 
+// RequestRematch marks a player as ready for rematch.
+// When both players are ready, the room is reset and a new round starts.
+func (m *Manager) RequestRematch(roomID, userID string) ([]Event, bool, error) {
+	room, err := m.getRoom(roomID)
+	if err != nil {
+		return nil, false, err
+	}
+
+	room.mu.Lock()
+	defer room.mu.Unlock()
+
+	if len(room.Players) != MaxPlayers {
+		return nil, false, errors.New("need 2 players for rematch")
+	}
+	if _, ok := room.Players[userID]; !ok {
+		return nil, false, ErrNotInRoom
+	}
+
+	room.RematchReady[userID] = true
+
+	readyCount := 0
+	for _, ready := range room.RematchReady {
+		if ready {
+			readyCount++
+		}
+	}
+
+	if readyCount < MaxPlayers {
+		return nil, false, nil
+	}
+
+	room.Round = 0
+	room.RoundToken = 0
+	room.Started = false
+	room.Prompt = ""
+	room.Expected = ""
+	room.ValidAnswers = []string{}
+	room.AICurrent = 0
+	room.LocalCurrent = 0
+	room.RematchReady = make(map[string]bool)
+
+	for _, p := range room.Players {
+		p.HP = StartingHP
+		p.CorrectCount = 0
+		p.WrongCount = 0
+	}
+
+	room.startRoundLocked()
+
+	events := []Event{room.snapshotEventLocked(), room.roundStartEventLocked()}
+	return events, true, nil
+}
+
+// ResetRoom resets a finished room for a new match (rematch with same players).
+func (m *Manager) ResetRoom(roomID string) ([]Event, error) {
+	room, err := m.getRoom(roomID)
+	if err != nil {
+		return nil, err
+	}
+
+	room.mu.Lock()
+	defer room.mu.Unlock()
+
+	if len(room.Players) != MaxPlayers {
+		return nil, errors.New("need 2 players for rematch")
+	}
+
+	room.Round = 0
+	room.RoundToken = 0
+	room.Started = false
+	room.Prompt = ""
+	room.Expected = ""
+	room.ValidAnswers = []string{}
+	room.AICurrent = 0
+	room.LocalCurrent = 0
+
+	for _, p := range room.Players {
+		p.HP = StartingHP
+		p.CorrectCount = 0
+		p.WrongCount = 0
+	}
+
+	// Start first round immediately
+	room.startRoundLocked()
+
+	events := []Event{room.snapshotEventLocked(), room.roundStartEventLocked()}
+	return events, nil
+}
+
 // Leave удаляет игрока из комнаты и возвращает событие для рассылки.
-func (m *Manager) Leave(roomID, userID string) ([]Event, error) {
+// Второй возвращаемый bool = true если другой игрок ожидал реванша.
+func (m *Manager) Leave(roomID, userID string) ([]Event, bool, error) {
 	if roomID == "" || userID == "" {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	room, err := m.getRoom(roomID)
 	if err != nil {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	room.mu.Lock()
 	_, exists := room.Players[userID]
+	rematchWasPending := false
 	if exists {
+		// Check if any player had requested a rematch before removing
+		if len(room.RematchReady) > 0 {
+			rematchWasPending = true
+		}
 		delete(room.Players, userID)
+		delete(room.RematchReady, userID)
 		room.Started = false
 		room.Prompt = ""
 		room.Expected = ""
@@ -293,12 +411,13 @@ func (m *Manager) Leave(roomID, userID string) ([]Event, error) {
 	room.mu.Unlock()
 
 	if !exists {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	events := []Event{{
 		Type:    "player_left",
 		RoomID:  roomID,
+		UserID:  userID,
 		Players: players,
 		HP:      hp,
 		Reason:  "disconnect",
@@ -311,7 +430,7 @@ func (m *Manager) Leave(roomID, userID string) ([]Event, error) {
 		m.mu.Unlock()
 	}
 
-	return events, nil
+	return events, rematchWasPending, nil
 }
 
 // RoundTimeout завершает раунд по таймауту и запускает следующий.
@@ -346,24 +465,6 @@ func (m *Manager) RoundTimeout(roomID string, expectedToken int) ([]Event, error
 	// Check if we need halftime (BEFORE starting next round - after round 10)
 	needsHalftime := room.Round == HalfSize && room.Round < MaxRounds && hasNext
 
-	room.startRoundLocked()
-
-	if needsHalftime {
-		// Send halftime event instead of immediate round start
-		events = append(events, Event{
-			Type:          "halftime",
-			RoomID:        room.ID,
-			DuelID:        room.DuelID,
-			Round:         room.Round, // now 11
-			Half:          2,
-			TotalPhrases:  room.GetTotalPhrasesLocked(),
-			HP:            room.hpMapLocked(),
-			Prompt:        "⏸ HALF TIME ⏸",
-			CorrectAnswer: "",
-		})
-		return events, nil
-	}
-
 	if !hasNext {
 		winnerID := room.determineWinnerByHP()
 		correctCount, wrongCount := room.GetPlayerStats()
@@ -377,6 +478,23 @@ func (m *Manager) RoundTimeout(roomID string, expectedToken int) ([]Event, error
 			CorrectCount: correctCount,
 			WrongCount:   wrongCount,
 			Reason:       "phrases_exhausted",
+		})
+		return events, nil
+	}
+
+	room.startRoundLocked()
+
+	if needsHalftime {
+		events = append(events, Event{
+			Type:          "halftime",
+			RoomID:        room.ID,
+			DuelID:        room.DuelID,
+			Round:         room.Round,
+			Half:          2,
+			TotalPhrases:  room.GetTotalPhrasesLocked(),
+			HP:            room.hpMapLocked(),
+			Prompt:        "⏸ HALF TIME ⏸",
+			CorrectAnswer: "",
 		})
 		return events, nil
 	}
@@ -396,8 +514,9 @@ func (m *Manager) getOrCreateRoom(id string) *Room {
 	}
 
 	room = &Room{
-		ID:      id,
-		Players: make(map[string]*Player),
+		ID:           id,
+		Players:      make(map[string]*Player),
+		RematchReady: make(map[string]bool),
 	}
 	m.rooms[id] = room
 	return room
@@ -427,6 +546,27 @@ func (m *Manager) HasPlayer(roomID, userID string) bool {
 	defer room.mu.Unlock()
 	_, ok := room.Players[userID]
 	return ok
+}
+
+func (m *Manager) GetPlayerNames(roomID string) []string {
+	room, err := m.getRoom(roomID)
+	if err != nil {
+		return nil
+	}
+	room.mu.Lock()
+	defer room.mu.Unlock()
+	return room.playerListLocked()
+}
+
+// GetRoomSettings returns topic, lang, difficulty for a room.
+func (m *Manager) GetRoomSettings(roomID string) (topic, lang, difficulty string, ok bool) {
+	room, err := m.getRoom(roomID)
+	if err != nil {
+		return "", "", "", false
+	}
+	room.mu.Lock()
+	defer room.mu.Unlock()
+	return room.Topic, room.Lang, room.Difficulty, true
 }
 
 // SetAIPhrases устанавливает AI сгенерированные фразы для комнаты

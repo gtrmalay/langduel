@@ -40,6 +40,8 @@
   export let duelId = '';
   export let connectionStatus = 'disconnected';
   export let ping = -1;
+  export let rematchWaiting = false;
+  export let rematchRequested = false;
   export let onSend = () => {};
   export let onLeave = () => {};
   export let onPlayAgain = () => {};
@@ -155,8 +157,8 @@
 
   function triggerRoundAnnounce() {
     // Check if it's halftime
-    if (translatedRoundInfo && (translatedRoundInfo.includes('HALFTIME') || translatedRoundInfo.includes('Half 2'))) {
-      announceRound = 'HALF 2';
+    if (translatedRoundInfo && (translatedRoundInfo.includes('HALFTIME') || translatedRoundInfo.includes('Half 2') || translatedRoundInfo.includes('Тайм 2'))) {
+      announceRound = $_('battle.half2');
       showRoundAnnounce = true;
       
       // Start halftime countdown (5 seconds)
@@ -180,7 +182,7 @@
     }
     
     // Regular round announcement - only for rounds 1 and 11 (start of each half)
-    const match = roundInfo.match(/Round (\d+)/);
+    const match = roundInfo.match(/(\d+)/);
     if (!match) return;
     
     const roundNum = parseInt(match[1]);
@@ -287,18 +289,18 @@
   
   // Compute current half from round number
   $: currentHalf = (() => {
-    const match = roundInfo.match(/Round (\d+)/);
+    const match = roundInfo.match(/(\d+)/);
     if (!match) return 1;
     const roundNum = parseInt(match[1]);
     return roundNum <= 10 ? 1 : 2;
   })();
   
   // Check if we're in halftime (input disabled)
-  $: isHalftime = roundInfo && (roundInfo.includes('HALFTIME') || roundInfo.includes('Half 2'));
+  $: isHalftime = roundInfo && (roundInfo.includes('HALFTIME') || roundInfo.includes('Half 2') || roundInfo.includes('Тайм 2'));
   $: inputDisabled = isHalftime || gameOverOpen;
   
   // Combined round display
-  $: roundDisplay = translatedRoundInfo ? translatedRoundInfo + (currentHalf ? ` (Half ${currentHalf}/2)` : '') : $_('battle.round').toUpperCase();
+  $: roundDisplay = translatedRoundInfo ? translatedRoundInfo + (currentHalf ? ` (${$_('battle.half').replace('{half}', currentHalf)}/2)` : '') : $_('battle.round').toUpperCase();
 </script>
 
 <div class="battle-container" class:shake={screenShake}>
@@ -306,7 +308,7 @@
     <div class="connection-overlay">
       <div class="connection-lost">
         <span class="conn-icon">📡</span>
-        <span class="conn-text">Connection lost. Reconnecting...</span>
+        <span class="conn-text">{$_('battle.connectionLost')}</span>
       </div>
     </div>
   {/if}
@@ -319,7 +321,7 @@
     <div class="round-announce-overlay">
       <div class="round-announce">
         <span class="round-sword">⚔️</span>
-        <span class="round-text">{typeof announceRound === 'string' ? announceRound : 'ROUND ' + announceRound}</span>
+        <span class="round-text">{typeof announceRound === 'string' ? announceRound : $_('battle.round').toUpperCase() + ' ' + announceRound}</span>
         <span class="round-sword">⚔️</span>
         {#if halftimeCountdown}
           <div class="halftime-countdown">{halftimeCountdown}</div>
@@ -374,7 +376,7 @@
       <div class="battle-line"></div>
     </div>
 
-    <div class="player-side player-b" class:hit={avatarHitB}>
+    <div class="player-side player-b" class:attacking={avatarAttackB} class:hit={avatarHitB}>
       <div class="player-header">
         <span class="player-avatar-small">{charB.emoji}</span>
         <span class="player-name">{playerB}</span>
@@ -473,7 +475,19 @@
             </span>
           </div>
         </div>
-        <button class="play-again-btn" on:click={onPlayAgain}>{$_('gameOver.playAgain').toUpperCase()}</button>
+        {#if rematchRequested}
+          <button class="play-again-btn waiting" disabled>
+            ⏳ {$_('rematch.waiting')}
+          </button>
+        {:else if rematchWaiting && !rematchRequested}
+          <button class="play-again-btn opponent-waiting" on:click={onPlayAgain}>
+            ✅ {$_('rematch.opponentWaiting')}
+          </button>
+        {:else}
+          <button class="play-again-btn" on:click={onPlayAgain}>
+            {$_('rematch.playAgain').toUpperCase()}
+          </button>
+        {/if}
         <button class="analysis-btn" on:click={openAnalysis}>📊 {$_('gameOver.viewAnalysis').toUpperCase() || 'ANALYSIS'}</button>
         <button class="home-btn" on:click={onLeave}>{$_('gameOver.home').toUpperCase()}</button>
       </div>
@@ -516,18 +530,34 @@
                   {/if}
                   <div class="answers-list">
                     {#each (() => {
-                      const seen = new Map();
+                      const answered = new Map();
                       for (const ans of (round.answers || [])) {
-                        if (!seen.has(ans.user_id)) {
-                          seen.set(ans.user_id, ans);
-                        }
+                        answered.set(ans.user_id, ans);
                       }
-                      return Array.from(seen.values());
+                      return (analysisData.participants || []).map(p => {
+                        const existing = answered.get(p.user_id);
+                        if (existing) {
+                          // Empty answer from DB = server-saved timeout entry
+                          const isTimeout = !existing.answer && !existing.is_correct;
+                          return { ...existing, no_answer: isTimeout };
+                        }
+                        // No DB row at all — synthesize placeholder
+                        return {
+                          user_id: p.user_id,
+                          username: p.username,
+                          answer: null,
+                          is_correct: false,
+                          no_answer: true
+                        };
+                      });
                     })() as ans}
-                      <div class="answer-item" class:correct={ans.is_correct} class:wrong={!ans.is_correct}>
+                      <div class="answer-item"
+                           class:correct={ans.is_correct}
+                           class:wrong={!ans.is_correct && !ans.no_answer}
+                           class:no-answer={ans.no_answer}>
                         <span class="answer-user">{ans.username}:</span>
-                        <span class="answer-text">"{ans.answer || ''}"</span>
-                        <span class="answer-status">{ans.is_correct ? '✓' : '✗'}</span>
+                        <span class="answer-text">{ans.no_answer ? '—' : `"${ans.answer}"`}</span>
+                        <span class="answer-status">{ans.no_answer ? '⏱' : (ans.is_correct ? '✓' : '✗')}</span>
                       </div>
                     {/each}
                   </div>
@@ -1197,11 +1227,19 @@
 
   .prompt-text {
     font-family: "Space Grotesk", sans-serif;
-    font-size: 32px;
+    font-size: 18px;
     font-weight: 700;
     color: var(--text);
-    letter-spacing: 2px;
+    letter-spacing: 0.5px;
     text-transform: uppercase;
+    line-height: 1.2;
+    text-align: center;
+    white-space: nowrap !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+    display: block;
+    box-sizing: border-box;
   }
 
   .cursor {
@@ -1401,20 +1439,23 @@
   }
 
   .game-over-result {
-    font-size: 20px;
+    font-family: "Press Start 2P", cursive;
+    font-size: 14px;
     font-weight: 700;
     color: var(--text);
     margin-bottom: 8px;
   }
 
   .game-over-hp {
-    font-size: 13px;
+    font-family: "Press Start 2P", cursive;
+    font-size: 10px;
     color: var(--muted);
     margin-bottom: 24px;
   }
 
   .game-over-reason {
-    font-size: 12px;
+    font-family: "Press Start 2P", cursive;
+    font-size: 10px;
     color: var(--accent-2);
     margin-bottom: 16px;
     font-weight: 600;
@@ -1467,9 +1508,30 @@
     margin-bottom: 12px;
   }
 
+  .play-again-btn.waiting {
+    border-color: var(--accent-2);
+    background: linear-gradient(135deg, rgba(246, 193, 68, 0.2), rgba(246, 193, 68, 0.1));
+    color: var(--accent-2);
+    cursor: not-allowed;
+    opacity: 0.7;
+    animation: pulse-waiting 1.5s ease-in-out infinite;
+  }
+
+  .play-again-btn.opponent-waiting {
+    border-color: #2ecc71;
+    background: linear-gradient(135deg, rgba(46, 204, 113, 0.25), rgba(46, 204, 113, 0.1));
+    color: #2ecc71;
+    animation: pulse-waiting 1s ease-in-out infinite;
+  }
+
   .play-again-btn:hover {
     box-shadow: 0 0 25px rgba(37, 244, 183, 0.4);
     transform: translateY(-2px);
+  }
+
+  @keyframes pulse-waiting {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
   }
 
   .home-btn {
@@ -1494,7 +1556,8 @@
     border-radius: 10px;
     background: rgba(37, 244, 183, 0.1);
     color: var(--accent);
-    font-size: 12px;
+    font-family: "Press Start 2P", cursive;
+    font-size: 10px;
     cursor: pointer;
     transition: all 0.2s;
     margin-bottom: 12px;
@@ -1529,7 +1592,8 @@
   }
 
   .analysis-title {
-    font-size: 20px;
+    font-family: "Press Start 2P", cursive;
+    font-size: 14px;
     font-weight: 700;
     color: var(--accent);
     text-align: center;
@@ -1665,6 +1729,7 @@
 
   .answer-item.correct { border-left: 4px solid var(--accent); }
   .answer-item.wrong { border-left: 4px solid var(--danger); }
+  .answer-item.no-answer { border-left: 4px solid var(--muted); opacity: 0.6; }
 
   .answer-user {
     font-weight: 600;
@@ -1693,7 +1758,8 @@
     border-radius: 10px;
     background: var(--outline);
     color: var(--text);
-    font-size: 14px;
+    font-family: "Press Start 2P", cursive;
+    font-size: 10px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;

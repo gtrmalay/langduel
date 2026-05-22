@@ -56,6 +56,7 @@ type Room struct {
 	AICurrent    int
 	LocalPhrases []storage.Phrase
 	LocalCurrent int
+	RematchReady map[string]bool
 }
 
 func (r *Room) startRoundLocked() {
@@ -115,7 +116,7 @@ func (r *Room) HasMorePhrasesLocked() bool {
 	if len(r.LocalPhrases) > 0 {
 		return r.LocalCurrent < len(r.LocalPhrases)
 	}
-	// Fallback always has phrases
+	// Fallback always has phrases (cycles through fallbackPhrases)
 	return true
 }
 
@@ -128,8 +129,12 @@ func (r *Room) GetTotalPhrasesLocked() int {
 	if len(r.LocalPhrases) > 0 {
 		return len(r.LocalPhrases)
 	}
-	// Fallback
-	return MaxRounds
+	// Fallback - return remaining phrases based on current round
+	remaining := MaxRounds - r.Round
+	if remaining <= 0 {
+		return 0
+	}
+	return remaining
 }
 
 func (r *Room) GetPlayerStats() (map[string]int, map[string]int) {
@@ -149,6 +154,10 @@ func (r *Room) determineWinnerByHP() string {
 		if p.HP > maxHP {
 			maxHP = p.HP
 			winnerID = id
+		} else if p.HP == maxHP && winnerID != "" {
+			if p.CorrectCount > r.Players[winnerID].CorrectCount {
+				winnerID = id
+			}
 		}
 	}
 	return winnerID
@@ -250,6 +259,7 @@ func (r *Room) roundStartEventLocked() Event {
 	return Event{
 		Type:          "round_start",
 		RoomID:        r.ID,
+		DuelID:        r.DuelID,
 		Round:         r.Round,
 		RoundToken:    r.RoundToken,
 		TotalPhrases:  totalPhrases,
@@ -259,6 +269,26 @@ func (r *Room) roundStartEventLocked() Event {
 		Prompt:        r.Prompt,
 		CorrectAnswer: r.Expected,
 		HP:            r.hpMapLocked(),
+	}
+}
+
+func (r *Room) ResetForRematch() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.Round = 0
+	r.RoundToken = 0
+	r.Started = false
+	r.Prompt = ""
+	r.Expected = ""
+	r.ValidAnswers = []string{}
+	r.AICurrent = 0
+	r.LocalCurrent = 0
+
+	for _, p := range r.Players {
+		p.HP = StartingHP
+		p.CorrectCount = 0
+		p.WrongCount = 0
 	}
 }
 

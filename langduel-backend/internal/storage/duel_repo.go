@@ -286,7 +286,8 @@ func (r *DuelRepo) CreateDuel(ctx context.Context, roomCode, createdByUserID, th
 func (r *DuelRepo) GetDuelByRoomCode(ctx context.Context, roomCode string) (*Duel, error) {
 	row := r.db.Pool.QueryRow(ctx,
 		`SELECT duel_id, room_code, theme, difficulty, language_from, language_to, status
-         FROM duels WHERE room_code = $1`,
+         FROM duels WHERE room_code = $1 AND status != 'finished'
+         ORDER BY created_at DESC LIMIT 1`,
 		roomCode,
 	)
 	var d Duel
@@ -356,10 +357,37 @@ func (r *DuelRepo) CreateRound(ctx context.Context, duelID string, roundNumber i
 	return &Round{ID: roundID, DuelID: duelID, Round: roundNumber, PhraseID: phraseID, TimeLimit: timeLimitMs}, nil
 }
 
+// GetRoundID returns the DB round_id for a given duel and round number.
+func (r *DuelRepo) GetRoundID(ctx context.Context, duelID string, roundNumber int) (string, error) {
+	var id string
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT round_id::text FROM game_rounds WHERE duel_id = $1 AND round_number = $2 LIMIT 1`,
+		duelID, roundNumber,
+	).Scan(&id)
+	if err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+// GetParticipantID returns the DB participant_id for a given duel and user.
+func (r *DuelRepo) GetParticipantID(ctx context.Context, duelID, userID string) (string, error) {
+	var id string
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT participant_id::text FROM duel_participants WHERE duel_id = $1 AND user_id = $2 LIMIT 1`,
+		duelID, userID,
+	).Scan(&id)
+	if err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
 func (r *DuelRepo) CreateAnswer(ctx context.Context, roundID, participantID, translationText string, correct bool, responseTimeMs, damageDealt int) error {
-	_, err := r.db.Pool.Exec(ctx,
-		`INSERT INTO player_answers (round_id, participant_id, translation_text, is_correct, response_time_ms, damage_dealt)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
+	_, err := r.db.Pool.Exec(ctx, `
+		INSERT INTO player_answers (round_id, participant_id, translation_text, is_correct, response_time_ms, damage_dealt)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (round_id, participant_id) DO NOTHING`,
 		roundID, participantID, translationText, correct, responseTimeMs, damageDealt,
 	)
 	return err
@@ -1155,6 +1183,15 @@ func (r *DuelRepo) SaveAIPhrase(ctx context.Context, duelID, roomCode, prompt st
 	return err
 }
 
+// DeleteAIPhrasesByRoomCode deletes all AI phrases for a room (for regeneration)
+func (r *DuelRepo) DeleteAIPhrasesByRoomCode(ctx context.Context, roomCode string) (int64, error) {
+	tag, err := r.db.Pool.Exec(ctx, `DELETE FROM ai_phrases WHERE room_code = $1`, roomCode)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
 // GetAIPhrases returns AI-generated phrases for a duel or room
 func (r *DuelRepo) GetAIPhrases(ctx context.Context, duelID, roomCode string) ([]AIPhrase, error) {
 	var rows pgx.Rows
@@ -1233,6 +1270,51 @@ func (r *DuelRepo) EnsureAIPhraseTable(ctx context.Context) error {
 		return err
 	}
 	_, err = r.db.Pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_ai_phrases_used ON ai_phrases(used)`)
+	return err
+}
+
+// EnsureSchemaFixes applies one-time schema corrections at startup.
+// These are idempotent so they are safe to run on every start.
+func (r *DuelRepo) EnsureSchemaFixes(ctx context.Context) error {
+	// Remove UNIQUE constraint on room_code so multiple duels can share the same
+	// room code (rematches). Without this, rematch creation fails and new games
+	// reuse old finished duels, corrupting analysis data.
+	_, err := r.db.Pool.Exec(ctx, `
+		ALTER TABLE duels DROP CONSTRAINT IF EXISTS duels_room_code_key
+	`)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.Pool.Exec(ctx, `
+		CREATE INDEX IF NOT EXISTS idx_duels_room_code ON duels(room_code)
+	`)
+	if err != nil {
+		return err
+	}
+	// Ensure UNIQUE(round_id, participant_id) on player_answers so that
+	// ON CONFLICT DO NOTHING works in CreateAnswer.
+	// First remove any duplicate rows (keep the best answer per round+participant),
+	// then create the unique index (idempotent via IF NOT EXISTS).
+	_, err = r.db.Pool.Exec(ctx, `
+		DELETE FROM player_answers WHERE ctid IN (
+			SELECT ctid FROM (
+				SELECT ctid,
+					ROW_NUMBER() OVER (
+						PARTITION BY round_id, participant_id
+						ORDER BY CASE WHEN translation_text != '' THEN 0 ELSE 1 END, ctid
+					) AS rn
+				FROM player_answers
+			) ranked
+			WHERE rn > 1
+		)
+	`)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.Pool.Exec(ctx, `
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_player_answers_round_participant
+		ON player_answers(round_id, participant_id)
+	`)
 	return err
 }
 

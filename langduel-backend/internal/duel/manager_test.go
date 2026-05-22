@@ -49,7 +49,7 @@ func TestSubmitAnswerWrongNoRoundStart(t *testing.T) {
 	if _, err := m.Join("room1", "u2", "default", "intermediate", "en", ""); err != nil {
 		t.Fatalf("join u2: %v", err)
 	}
-	events, err := m.SubmitAnswer("room1", "u1", "wrong", 3000)
+	events, err := m.SubmitAnswer("room1", "u1", "wrong", 3000, 1)
 	if err != nil {
 		t.Fatalf("submit: %v", err)
 	}

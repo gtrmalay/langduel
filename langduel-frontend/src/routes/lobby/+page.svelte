@@ -225,7 +225,7 @@
 
   .player-card {
     flex: 1;
-    max-width: 160px;
+    max-width: 200px;
     padding: 24px 16px;
     background: var(--card);
     border-radius: 16px;
@@ -260,7 +260,8 @@
     font-weight: 600;
     color: var(--text);
     text-align: center;
-    word-break: break-all;
+    word-break: break-word;
+    overflow-wrap: break-word;
   }
 
   .player-status {
@@ -271,6 +272,7 @@
     color: var(--muted);
     text-transform: uppercase;
     letter-spacing: 1px;
+    white-space: nowrap;
   }
 
   .player-status.ready {

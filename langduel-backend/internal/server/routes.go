@@ -41,6 +41,6 @@ func (s *Server) routes() {
 	// avatar shop endpoints
 	s.mux.HandleFunc("/me/buy-avatar", authMiddleware(s.handleBuyAvatar))
 
-	// AI phrase generation endpoint
-	s.mux.HandleFunc("/api/generate-phrases", s.handleGeneratePhrases)
+	// AI phrase generation endpoint (rate limited)
+	s.mux.HandleFunc("/api/generate-phrases", rateLimitMiddleware(s.handleGeneratePhrases))
 }

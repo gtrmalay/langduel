@@ -47,6 +47,10 @@
     hitB={$duel.hitB}
     lastDamage={$duel.lastDamage}
     lastDamageTo={$duel.lastDamageTo}
+    attackA={$duel.attackA}
+    attackB={$duel.attackB}
+    inputCorrect={$duel.inputCorrect}
+    inputWrong={$duel.inputWrong}
     gameOverOpen={$duel.gameOverOpen}
     gameOverText={$duel.gameOverText}
     gameOverHP={$duel.gameOverHP}
@@ -54,13 +58,15 @@
     isGameWinner={$duel.isGameWinner}
     duelId={$duel.currentDuelId || ''}
     connectionStatus={$duel.connectionStatus}
+    rematchWaiting={$duel.rematchWaiting}
+    rematchRequested={$duel.rematchRequested}
     ping={$duel.ping}
     onSend={() => {
       duel.sendAnswer(answer);
       answer = '';
     }}
     onLeave={() => duel.leaveMatch()}
-    onPlayAgain={() => duel.createAndConnect()}
+    onPlayAgain={() => duel.rematchAndConnect()}
   />
 </div>
 

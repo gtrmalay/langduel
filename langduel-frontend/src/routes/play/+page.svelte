@@ -81,9 +81,14 @@
     }
     
     generatingPhrases = true;
-    phrasesGenerated = false;
     
-    const success = await duel.generatePhrases(room, topic, difficulty, lang);
+    let success;
+    if (phrasesGenerated) {
+      success = await duel.regeneratePhrases(room, topic, difficulty, lang);
+    } else {
+      phrasesGenerated = false;
+      success = await duel.generatePhrases(room, topic, difficulty, lang);
+    }
     
     generatingPhrases = false;
     if (success) {
@@ -174,7 +179,7 @@
       </div>
 
       <div class="form-group">
-        <label for="language">Direction</label>
+        <label for="language">{$_('play.direction')}</label>
         <select 
           id="language"
           value={$duel.createLang}
@@ -237,19 +242,19 @@
         <button 
           class="generate-btn" 
           on:click={handleGeneratePhrases}
-          disabled={generatingPhrases || phrasesGenerated || !$duel.createRoom}
+          disabled={generatingPhrases || !$duel.createRoom}
         >
           {#if generatingPhrases}
             <span class="spinner"></span>
-            GENERATING...
+            {$_('play.generating')}
           {:else if phrasesGenerated}
-            ✓ PHRASES READY
+            🔄 {$_('play.regeneratePhrases')}
           {:else}
-            ⚡ GENERATE PHRASES (AI)
+            ⚡ {$_('play.generatePhrases')}
           {/if}
         </button>
         {#if phrasesGenerated}
-          <span class="gen-note">20 phrases ready for your duel!</span>
+          <span class="gen-note">{$_('play.phrasesNote')}</span>
         {/if}
       </div>
 
@@ -508,8 +513,8 @@
     border: 1px solid var(--accent-2);
     background: rgba(246, 193, 68, 0.15);
     color: var(--accent-2);
-    font-family: "Space Grotesk", sans-serif;
-    font-size: 13px;
+    font-family: "Press Start 2P", cursive;
+    font-size: 11px;
     font-weight: 600;
     letter-spacing: 1px;
     cursor: pointer;

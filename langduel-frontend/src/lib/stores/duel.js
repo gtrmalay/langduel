@@ -1,5 +1,79 @@
 import { writable, get } from 'svelte/store';
 import { goto } from '$app/navigation';
+import { locale } from 'svelte-i18n';
+
+const translations = {
+  en: {
+    halfTimePause: '⏸ HALFTIME ',
+    half2: 'Half 2 / 2',
+    connectionLost: 'Connection lost. Reconnecting...',
+    winnerLabel: 'Winner',
+    finalHPLabel: 'Final HP',
+    victoryMessages: ['VICTORY! 🏆', 'YOU WIN! ⚔️', 'LEGENDARY! 🌟', 'UNSTOPPABLE! 🔥', 'CHAMPION! 👑', 'MASTERFUL! 🎯'],
+    defeatMessages: ['DEFEAT... 💔', 'GAME OVER 💀', 'SO CLOSE... 😢', 'NEXT TIME! ', 'ALMOST! 💪'],
+    reconnecting: 'Reconnecting...',
+phrasesExhausted: 'All phrases used!',
+    hpDepleted: 'HP reached zero!',
+    finalHPLabel: 'Final HP',
+    'gameOver.hpDepleted': 'HP reached zero!',
+    'gameOver.finalHPLabel': 'Final HP',
+    'gameOver.phrasesExhausted': 'All phrases used!',
+    'gameOver.victoryMessages': ['VICTORY!', 'YOU WIN!', 'LEGENDARY!', 'UNSTOPPABLE!', 'CHAMPION!', 'MASTERFUL!'],
+    'gameOver.defeatMessages': ['DEFEAT...', 'GAME OVER', 'SO CLOSE...', 'NEXT TIME!', 'ALMOST!'],
+    'gameOver.gameOver': 'GAME OVER',
+    'gameOver.winnerLabel': 'Winner',
+    'battle.round': 'Round',
+    'battle.correctHit': '✓ Correct! dmg: {damage}',
+    'battle.wrongHit': '✗ Wrong! -{damage} HP',
+    'battle.opponentCorrectHit': 'Opponent correct! -{damage} HP',
+    'battle.opponentWrongHit': 'Opponent wrong! -{damage} HP',
+    'rematch.waiting': 'Waiting for opponent...',
+    'rematch.notReady': 'Opponent not ready',
+    'rematch.cancelled': 'Rematch cancelled',
+    'rematch.opponentLeft': 'Opponent left the game',
+    'rematch.opponentWaiting': 'Opponent wants rematch! Accept',
+  },
+  ru: {
+    halfTimePause: '⏸ ПЕРЕРЫВ ⏸',
+    half2: 'Тайм 2 / 2',
+    connectionLost: 'Соединение потеряно. Переподключение...',
+    winnerLabel: 'Победитель',
+    finalHPLabel: 'Финал HP',
+    victoryMessages: ['ПОБЕДА! 🏆', 'ТЫ ПОБЕДИЛ! ⚔️', 'ЛЕГЕНДАРНО! 🌟', 'НЕУДЕРЖИМ! 🔥', 'ЧЕМПИОН! 👑', 'МАСТЕРСКИ! 🎯'],
+    defeatMessages: ['ПОРАЖЕНИЕ... 💔', 'ИГРА ОКОНЧЕНА 💀', 'ТАК БЛИЗКО... 😢', 'В СЛЕДУЮЩИЙ РАЗ! 🎮', 'ПОЧТИ! 💪'],
+    reconnecting: 'Переподключение...',
+    phrasesExhausted: 'Все фразы использованы!',
+    hpDepleted: 'HP на нуле!',
+    finalHPLabel: 'Финал HP',
+    'gameOver.hpDepleted': 'HP на нуле!',
+    'gameOver.finalHPLabel': 'Финал HP',
+    'gameOver.phrasesExhausted': 'Все фразы использованы!',
+    'gameOver.victoryMessages': ['ПОБЕДА!', 'ТЫ ПОБЕДИЛ!', 'ЛЕГЕНДАРНО!', 'НЕУДЕРЖИМ!', 'ЧЕМПИОН!', 'МАСТЕРСКИ!'],
+    'gameOver.defeatMessages': ['ПОРАЖЕНИЕ...', 'ИГРА ОКОНЧЕНА', 'ТАК БЛИЗКО...', 'В СЛЕДУЮЩИЙ РАЗ!', 'ПОЧТИ!'],
+    'gameOver.gameOver': 'ИГРА ОКОНЧЕНА',
+    'gameOver.winnerLabel': 'Победитель',
+    'battle.round': 'Раунд',
+    'battle.correctHit': '✓ Правильно! dmg: {damage}',
+    'battle.wrongHit': '✗ Попробуй ещё! -{damage} HP',
+    'battle.opponentCorrectHit': 'Соперник ответил правильно! -{damage} HP',
+    'battle.opponentWrongHit': 'Соперник ошибся! -{damage} HP',
+    'rematch.waiting': 'Ожидание соперника...',
+    'rematch.notReady': 'Соперник не готов',
+    'rematch.cancelled': 'Реванш отменён',
+    'rematch.opponentLeft': 'Соперник покинул игру',
+    'rematch.opponentWaiting': 'Соперник хочет реванш! Принять',
+  }
+};
+
+function t(key) {
+  try {
+    const currentLocale = get(locale) || 'en';
+    const lang = (currentLocale && currentLocale.startsWith('ru')) ? 'ru' : 'en';
+    return translations[lang][key] || translations.en[key] || key;
+  } catch {
+    return translations.en[key] || key;
+  }
+}
 
 const initialState = {
   status: 'Disconnected',
@@ -28,6 +102,9 @@ const initialState = {
   opponentAvatar: 'default',
   startError: '',
   gameEndedNormally: false,
+rematchWaiting: false,
+  rematchRequested: false,
+  roundToken: 0,
   authError: '',
   isCreator: false,
   currentRoom: '',
@@ -266,11 +343,14 @@ function ensurePlayers(list) {
 function showRoundInfo(data) {
   if (data && data.round) {
     const total = data.total_phrases || data.totalPhrases || 0;
+    const roundNum = data.round;
     if (total > 0) {
-      setState({ roundInfo: `Round ${data.round} / ${total}`, totalPhrases: total });
+      setState({ roundInfo: `${t('battle.round')} ${roundNum} / ${total}`, totalPhrases: total });
     } else {
-      setState({ roundInfo: `Round ${data.round}` });
+      setState({ roundInfo: `${t('battle.round')} ${roundNum}` });
     }
+    // Also store raw round number for announcement detection
+    setState({ currentRoundNumber: roundNum });
   }
 }
 
@@ -328,6 +408,7 @@ function saveLastSession() {
     creator: s.isCreator,
     flow: s.flowMode,
     auth: s.authMode,
+    lang: s.currentLang || s.createLang,
     topic: s.currentTopic || s.createTopic,
     difficulty: s.currentDifficulty || s.createDifficulty
   };
@@ -497,15 +578,39 @@ function connectAndJoin() {
     }
 
     if (data.type === 'player_left') {
+      const wasGameOver = get(state).gameOverOpen;
       ensurePlayers(data.players);
       applyHP(data.hp);
-      setState({ promptText: 'lobby.waiting', roundInfo: 'battle.playerLeft' });
+      setState({
+        promptText: 'lobby.waiting',
+        roundInfo: 'battle.playerLeft',
+        rematchWaiting: false,
+        rematchRequested: false
+      });
       stopCountdown();
-      goto(`/lobby?room=${encodeURIComponent(get(state).currentRoom)}`);
+      if (wasGameOver) {
+        // Game already ended — just clear rematch state, stay on result screen.
+        // User can click Home themselves.
+        setState({ gameOverOpen: true });
+      } else {
+        setState({ gameOverOpen: false });
+        goto(`/lobby?room=${encodeURIComponent(get(state).currentRoom)}`);
+      }
+    }
+
+    if (data.type === 'rematch_cancelled') {
+      setState({
+        rematchWaiting: false,
+        rematchRequested: false,
+        promptText: t('rematch.cancelled'),
+        roundInfo: t('rematch.opponentLeft')
+      });
     }
 
     if (data.type === 'round_start') {
-      setState({ promptText: data.prompt || 'Round started' });
+      const patch = { rematchWaiting: false, rematchRequested: false, roundToken: data.round_token || 0, promptText: data.prompt || 'Round started' };
+      if (data.duel_id) patch.currentDuelId = data.duel_id;
+      setState(patch);
       roundStartAt = Date.now();
       applyHP(data.hp);
       showRoundInfo(data);
@@ -513,21 +618,19 @@ function connectAndJoin() {
       goto(`/battle?room=${encodeURIComponent(get(state).currentRoom)}`);
     }
 
-    if (data.type === 'halftime') {
-      setState({ promptText: data.prompt || '⏸ HALF TIME ⏸', roundInfo: 'Half 2 / 2' });
-      applyHP(data.hp);
-      stopCountdown();
-      roundStartAt = null;
-      // After 5 seconds, start next round
-      setTimeout(() => {
-        if (get(state).currentRoom && get(state).connectionStatus === 'connected') {
-          ws.send(JSON.stringify({ type: 'next_round', room_id: get(state).currentRoom }));
-        }
-      }, 5000);
+    if (data.type === 'rematch_waiting') {
+      const me = get(state).currentUser;
+      const isMe = data.user_id === me;
+      setState({
+        rematchWaiting: true,
+        rematchRequested: isMe ? true : false,
+        promptText: t('rematch.waiting'),
+        roundInfo: t('rematch.notReady')
+      });
     }
 
     if (data.type === 'round_end') {
-      setState({ promptText: 'Время вышло. Следующий раунд...', roundInfo: 'Причина: ' + (data.reason || 'timeout') });
+      setState({ promptText: 'round.timeUp', roundInfo: 'round.reason: ' + (data.reason || 'timeout') });
       stopCountdown();
       roundStartAt = null;
     }
@@ -535,16 +638,13 @@ function connectAndJoin() {
     if (data.type === 'update') {
       applyHP(data.hp);
       
-      // Determine who received damage (opponent or self)
       let damageTarget = '';
       let damageAmount = 0;
       
       if (data.correct) {
-        // Correct answer: damage to opponent
         damageTarget = data.defender_id || '';
         damageAmount = data.damage || 0;
       } else if (data.self_damage && data.self_damage > 0) {
-        // Wrong answer: self-damage
         damageTarget = data.attacker_id || '';
         damageAmount = data.self_damage;
       }
@@ -556,34 +656,44 @@ function connectAndJoin() {
       
       if (isMyAnswer) {
         if (data.correct) {
-          setState({ inputCorrect: true, roundInfo: `✓ Правильно! dmg: ${data.damage}` });
+          setState({ inputCorrect: true, roundInfo: t('battle.correctHit').replace('{damage}', data.damage) });
           setTimeout(() => setState({ inputCorrect: false }), 400);
         } else {
-          setState({ inputWrong: true, roundInfo: `✗ Попробуй ещё! -${data.self_damage || 0} HP` });
+          setState({ inputWrong: true, roundInfo: t('battle.wrongHit').replace('{damage}', data.self_damage || 0) });
           setTimeout(() => setState({ inputWrong: false }), 600);
         }
       } else {
         if (data.correct) {
-          setState({ roundInfo: `Соперник ответил правильно! -${data.damage} HP` });
+          setState({ roundInfo: t('battle.opponentCorrectHit').replace('{damage}', data.damage) });
         } else {
-          setState({ roundInfo: `Соперник ошибся! -${data.self_damage || 0} HP` });
+          setState({ roundInfo: t('battle.opponentWrongHit').replace('{damage}', data.self_damage || 0) });
         }
       }
       
-      // Show damage on defender
       if (data.defender_id) hitEffect(data.defender_id);
       
-      // Show self-damage on attacker if wrong answer
       if (data.self_damage && data.self_damage > 0 && data.attacker_id) {
         hitEffect(data.attacker_id);
       }
     }
 
+if (data.type === 'halftime') {
+      setState({ promptText: data.prompt || t('halfTimePause'), roundInfo: t('half2') });
+      applyHP(data.hp);
+      stopCountdown();
+      roundStartAt = null;
+      setTimeout(() => {
+        if (get(state).currentRoom && get(state).connectionStatus === 'connected') {
+          ws.send(JSON.stringify({ type: 'next_round', room_id: get(state).currentRoom }));
+        }
+      }, 5000);
+    }
+
     if (data.type === 'game_over') {
       setState({ 
         gameEndedNormally: true,
-        promptText: 'Winner: ' + data.winner_id, 
-        roundInfo: 'Game over' 
+        promptText: t('gameOver.winnerLabel') + ': ' + data.winner_id, 
+        roundInfo: t('gameOver.gameOver') 
       });
       if (data.duel_id) {
         setState({ currentDuelId: data.duel_id });
@@ -601,13 +711,11 @@ function connectAndJoin() {
         const userCorrect = data.correct_count[userID] || 0;
         const userWrong = data.wrong_count[userID] || 0;
         
-        // Use the damage tracked during the game (more accurate)
-        const s = get(state);
         setState({ 
           correctCount: userCorrect, 
           wrongCount: userWrong,
-          playerADamage: s.playerADamage || 0,
-          playerBDamage: s.playerBDamage || 0
+          playerADamage: 0,
+          playerBDamage: 0
         });
       }
       
@@ -619,21 +727,8 @@ function connectAndJoin() {
       
       const winner = data.winner_id;
       const isWinner = winner && winner === get(state).currentUser;
-      const winMessages = [
-        'VICTORY! 🏆',
-        'YOU WIN! ⚔️',
-        'LEGENDARY! 🌟',
-        'UNSTOPPABLE! 🔥',
-        'CHAMPION! 👑',
-        'MASTERFUL! 🎯'
-      ];
-      const loseMessages = [
-        'DEFEAT... 💔',
-        'GAME OVER 💀',
-        'SO CLOSE... 😢',
-        'NEXT TIME! 🎮',
-        'ALMOST! 💪'
-      ];
+      const winMessages = t('gameOver.victoryMessages');
+      const loseMessages = t('gameOver.defeatMessages');
       
       let gameText;
       if (isWinner) {
@@ -655,15 +750,15 @@ function connectAndJoin() {
       
       let reasonText = '';
       if (data.reason === 'phrases_exhausted') {
-        reasonText = 'Phrases exhausted!';
+        reasonText = t('gameOver.phrasesExhausted');
       } else if (data.reason === 'hp_zero') {
-        reasonText = 'HP depleted!';
+        reasonText = t('gameOver.hpDepleted');
       }
       
       setState({
         gameOverOpen: true,
         gameOverText: gameText + eloInfo,
-        gameOverHP: 'Final HP - ' + a + ' | ' + b,
+        gameOverHP: t('gameOver.finalHPLabel') + ' - ' + a + ' | ' + b,
         gameOverReason: reasonText,
         isGameWinner: isWinner
       });
@@ -689,10 +784,87 @@ function reconnect() {
     hitA: false,
     hitB: false,
     attackA: false,
-    attackB: false
+    attackB: false,
+    selfDamageA: false,
+    selfDamageB: false,
+    inputCorrect: false,
+    inputWrong: false,
+    playerADamage: 0,
+    playerBDamage: 0,
+    lastDamage: 0,
+    lastDamageTo: '',
+    currentDuelId: '',
+    eloChange: {},
+    isGameWinner: null,
+    gameOverText: '',
+    gameOverHP: '',
+    gameOverReason: ''
   });
   connectAndJoin();
 }
+
+function rematchAndConnect() {
+  const s = get(state);
+  if (!s.currentRoom || !s.currentUser) return;
+
+  // Reset all game state
+  setState({
+    hp: {},
+    elo: {},
+    promptText: 'Waiting for round...',
+    timerText: '-',
+    roundInfo: '-',
+    correctCount: 0,
+    wrongCount: 0,
+    totalDamage: 0,
+    totalSpeed: 0,
+    speedCount: 0,
+    gameOverOpen: false,
+    gameEndedNormally: true,
+    hitA: false,
+    hitB: false,
+    attackA: false,
+    attackB: false,
+    selfDamageA: false,
+    selfDamageB: false,
+    inputCorrect: false,
+    inputWrong: false,
+    playerADamage: 0,
+    playerBDamage: 0,
+    lastDamage: 0,
+    lastDamageTo: '',
+    currentDuelId: '',
+    eloChange: {},
+    isGameWinner: null,
+    gameOverText: '',
+    gameOverHP: '',
+    gameOverReason: '',
+    rematchWaiting: true,
+    rematchRequested: true,
+    roundToken: 0
+  });
+  resetStats();
+
+  // Send rematch request on existing connection
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      type: 'rematch',
+      room_id: s.currentRoom,
+      user_id: s.currentUser,
+      lang: s.currentLang,
+      topic: s.currentTopic,
+      difficulty: s.currentDifficulty || s.createDifficulty,
+      avatar: s.authMode === 'auth' ? (s.userAvatar || 'default') : 'guest'
+    }));
+  } else {
+    // Reconnect if WS is closed
+    connectAndJoin();
+  }
+}
+
+  
+
+  
 
 async function syncAuthFromToken() {
   const s = get(state);
@@ -943,7 +1115,7 @@ function sendAnswer(answer) {
   
   // Block answers during halftime
   const s = get(state);
-  if (s.promptText && s.promptText.includes('HALF TIME')) return;
+  if (s.promptText && s.promptText.includes('ПЕРЕРЫВ') || s.promptText.includes('HALFTIME')) return;
   
   const trimmed = answer.trim();
   if (!trimmed || trimmed.length > 200) return;
@@ -954,7 +1126,8 @@ function sendAnswer(answer) {
     room_id: s.currentRoom,
     user_id: s.currentUser,
     answer: trimmed,
-    speed
+    speed,
+    round_token: s.roundToken
   };
   try {
     ws.send(JSON.stringify(msg));
@@ -1042,8 +1215,12 @@ function init() {
           isCreator: !!s.creator,
           flowMode: s.flow || 'create',
           authMode: s.auth || 'guest',
+          currentLang: s.lang || 'en-ru',
+          createLang: s.lang || 'en-ru',
           createTopic: s.topic || 'default',
-          createDifficulty: s.difficulty || 'intermediate'
+          currentTopic: s.topic || 'default',
+          createDifficulty: s.difficulty || 'intermediate',
+          currentDifficulty: s.difficulty || 'intermediate'
         });
       } catch {
         // ignore
@@ -1308,6 +1485,52 @@ async function generatePhrases(roomId, topic, difficulty, lang) {
   }
 }
 
+async function regeneratePhrases(roomId, topic, difficulty, lang) {
+  const s = get(state);
+  try {
+    setState({ generatingPhrases: true, generationError: '', phrasesGenerated: false });
+    const base = httpBaseFromWs(s.wsUrl);
+    
+    let langFrom = 'en';
+    let langTo = 'ru';
+    if (lang === 'ru-en') {
+      langFrom = 'ru';
+      langTo = 'en';
+    }
+    
+    const res = await fetch(`${base}/api/generate-phrases`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        room_id: roomId,
+        topic: topic || s.createTopic,
+        difficulty: difficulty || s.createDifficulty,
+        lang_from: langFrom,
+        lang_to: langTo,
+        regenerate: true
+      })
+    });
+    
+    if (!res.ok) {
+      const text = await res.text();
+      setState({ generationError: 'Regeneration failed: ' + text, generatingPhrases: false });
+      return false;
+    }
+    
+    const data = await res.json();
+    if (data.success) {
+      setState({ phrasesGenerated: true, generatingPhrases: false });
+      return true;
+    } else {
+      setState({ generationError: 'Regeneration failed', generatingPhrases: false });
+      return false;
+    }
+  } catch (e) {
+    setState({ generationError: 'Error: ' + e.message, generatingPhrases: false });
+    return false;
+  }
+}
+
 export const duel = {
   subscribe: state.subscribe,
   init,
@@ -1347,6 +1570,7 @@ export const duel = {
   createAndConnect,
   joinAndConnect,
   reconnect,
+  rematchAndConnect,
   gateJoin,
   sendAnswer,
   leaveMatch,
@@ -1362,6 +1586,7 @@ export const duel = {
   fetchDuelAnalysis,
   claimCoins,
   generatePhrases,
+  regeneratePhrases,
   getAvatarEmoji,
   getAvatarPrice,
   getAvatarProjectile,

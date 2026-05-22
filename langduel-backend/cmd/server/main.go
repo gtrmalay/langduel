@@ -27,6 +27,10 @@ func main() {
 		defer db.Close()
 		repo := storage.NewDuelRepo(db)
 
+		if err := repo.EnsureSchemaFixes(context.Background()); err != nil {
+			log.Printf("Warning: schema fixes failed: %v", err)
+		}
+
 		if err := repo.EnsureAIPhraseTable(context.Background()); err != nil {
 			log.Printf("Warning: failed to create ai_phrases table: %v", err)
 		}

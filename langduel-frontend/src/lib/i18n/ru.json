@@ -27,7 +27,24 @@
     "createRoom": "СОЗДАТЬ КОМНАТУ",
     "joinRoom": "ВОЙТИ В КОМНАТУ",
     "enterRoom": "Введите код комнаты",
-    "enterUsername": "Введите имя"
+    "enterUsername": "Введите имя",
+    "createDuel": "Создать дуэль",
+    "joinDuel": "Присоединиться к дуэли",
+    "generateRoom": "Сгенерировать комнату",
+    "copyLink": "Копировать ссылку",
+    "roomLink": "Ссылка комнаты",
+    "expand": "Развернуть",
+    "collapse": "Свернуть",
+    "nickname": "Никнейм (Гость)",
+    "defaultPack": "Стандартный набор",
+    "direction": "Тип перевода",
+    "accountAccess": "Доступ к аккаунту",
+    "generatePhrases": "СГЕНЕРИРОВАТЬ ФРАЗЫ (AI)",
+    "regeneratePhrases": "ПЕРЕГЕНЕРИРОВАТЬ ФРАЗЫ",
+    "phrasesReady": "ФРАЗЫ ГОТОВЫ",
+    "generating": "ГЕНЕРАЦИЯ...",
+    "regenerating": "ПЕРЕГЕНЕРАЦИЯ...",
+    "phrasesNote": "20 фраз готовы к дуэли!"
   },
   "topics": {
     "default": "Общее",
@@ -43,7 +60,7 @@
     "advanced": "Продвинутый"
   },
   "lobby": {
-    "waiting": "Ожидание соперника...",
+    "waiting": "Ждём соперника",
     "ready": "ГОТОВ",
     "waitingOpponent": "ОЖИДАНИЕ",
     "opponentJoined": "Соперник присоединился. Начинаем...",
@@ -68,7 +85,25 @@
     "playerLeft": "Игрок вышел",
     "unknownPhrase": "Неизвестная фраза",
     "halftime": "ПЕРЕРЫВ",
-    "halftimeBreak": "Перерыв перед вторым таймом..."
+    "halftimeBreak": "Перерыв перед вторым таймом...",
+    "halfTimePause": "⏸ ПЕРЕРЫВ ⏸",
+    "half2": "Тайм 2",
+    "correctHit": "✓ Правильно! dmg: {damage}",
+    "wrongHit": "✗ Попробуй ещё! -{damage} HP",
+    "opponentCorrectHit": "Соперник ответил правильно! -{damage} HP",
+    "opponentWrongHit": "Соперник ошибся! -{damage} HP",
+    "half": "Тайм",
+    "halfDisplay": "Тайм {half}/2",
+    "connectionLost": "Соединение потеряно. Переподключение...",
+    "winnerText": "Победитель"
+  },
+  "round": {
+    "timeUp": "Время вышло. Следующий раунд...",
+    "reason": "Причина",
+    "correct": "✓ Правильно! dmg: {damage}",
+    "wrong": "✗ Попробуй ещё! -{damage} HP",
+    "opponentCorrect": "Соперник ответил правильно! -{damage} HP",
+    "opponentWrong": "Соперник ошибся! -{damage} HP"
   },
   "gameOver": {
     "victory": "ПОБЕДА!",
@@ -86,7 +121,13 @@
     "home": "НА ГЛАВНУЮ",
     "duelAnalysis": "АНАЛИЗ ДУЭЛИ",
     "viewAnalysis": "АНАЛИЗ",
-    "close": "ЗАКРЫТЬ"
+    "close": "ЗАКРЫТЬ",
+    "finalHPLabel": "Финал HP",
+    "winnerLabel": "Победитель",
+    "victoryMessages": ["ПОБЕДА! 🏆", "ТЫ ПОБЕДИЛ! ⚔️", "ЛЕГЕНДАРНО! 🌟", "НЕУДЕРЖИМ! 🔥", "ЧЕМПИОН! 👑", "МАСТЕРСКИ! 🎯"],
+    "defeatMessages": ["ПОРАЖЕНИЕ... 💔", "ИГРА ОКОНЧЕНА 💀", "ТАК БЛИЗКО... 😢", "В СЛЕДУЮЩИЙ РАЗ! 🎮", "ПОЧТИ! 💪"],
+    "phrasesExhausted": "Все фразы использованы!",
+    "hpDepleted": "HP на нуле!"
   },
   "profile": {
     "stats": "СТАТИСТИКА",
@@ -179,6 +220,19 @@
   "confirm": {
     "logout": "Вы уверены, что хотите выйти?",
     "usernameEmpty": "Пожалуйста, введите имя"
+  },
+  "reconnect": {
+    "title": "ПЕРЕПОДКЛЮЧЕНИЕ",
+    "reconnecting": "Переподключение...",
+    "backToHome": "НА ГЛАВНУЮ"
+  },
+  "rematch": {
+    "waiting": "Ожидание соперника...",
+    "notReady": "Соперник ещё не готов",
+    "playAgain": "РЕВАНШ",
+    "opponentWaiting": "Соперник хочет реванш! Принять",
+    "cancelled": "Реванш отменён",
+    "opponentLeft": "Соперник покинул игру"
   },
   "leaderboard": {
     "title": "РЕЙТИНГ",

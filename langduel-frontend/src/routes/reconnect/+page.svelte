@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte';
+  import { _ } from 'svelte-i18n';
   import { duel } from '$lib/stores/duel.js';
   import ReconnectPanel from '$lib/components/ReconnectPanel.svelte';
 
@@ -17,7 +18,7 @@
   <header>
     <div>
       <div class="title">LangDuel</div>
-      <div class="title-badge">RECONNECT</div>
+      <div class="title-badge">{$_('reconnect.title')}</div>
     </div>
     <div class="status">{$duel.status}</div>
   </header>
@@ -25,7 +26,7 @@
   <ReconnectPanel
     reconnectNote={$duel.reconnectNote}
     onReconnect={() => {
-      duel.setField('reconnectNote', 'Reconnecting...');
+      duel.setField('reconnectNote', $_('reconnect.reconnecting'));
       duel.reconnect();
     }}
     onBack={() => {

@@ -27,7 +27,24 @@
     "createRoom": "CREATE ROOM",
     "joinRoom": "JOIN ROOM",
     "enterRoom": "Enter room code",
-    "enterUsername": "Enter username"
+    "enterUsername": "Enter username",
+    "createDuel": "Create Duel",
+    "joinDuel": "Join Duel",
+    "generateRoom": "Generate Room",
+    "copyLink": "Copy Link",
+    "roomLink": "Room link",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "nickname": "Nickname (Guest)",
+    "defaultPack": "Default pack",
+    "direction": "Direction",
+    "accountAccess": "Account access",
+    "generatePhrases": "GENERATE PHRASES (AI)",
+    "regeneratePhrases": "REGENERATE PHRASES",
+    "phrasesReady": "PHRASES READY",
+    "generating": "GENERATING...",
+    "regenerating": "REGENERATING...",
+    "phrasesNote": "20 phrases ready for your duel!"
   },
   "topics": {
     "default": "General",
@@ -43,7 +60,7 @@
     "advanced": "Advanced"
   },
   "lobby": {
-    "waiting": "Waiting for opponent...",
+    "waiting": "Waiting for opponent",
     "ready": "READY",
     "waitingOpponent": "WAITING",
     "opponentJoined": "Opponent joined. Starting...",
@@ -68,7 +85,25 @@
     "playerLeft": "Player left",
     "unknownPhrase": "Unknown phrase",
     "halftime": "HALFTIME",
-    "halftimeBreak": "Break before second half..."
+    "halftimeBreak": "Break before second half...",
+    "halfTimePause": "⏸ HALFTIME ⏸",
+    "half2": "Half 2",
+    "correctHit": "✓ Correct! dmg: {damage}",
+    "wrongHit": "✗ Wrong! -{damage} HP",
+    "opponentCorrectHit": "Opponent correct! -{damage} HP",
+    "opponentWrongHit": "Opponent wrong! -{damage} HP",
+    "half": "Half",
+    "halfDisplay": "Half {half}/2",
+    "connectionLost": "Connection lost. Reconnecting...",
+    "winnerText": "Winner"
+  },
+  "round": {
+    "timeUp": "Time's up. Next round...",
+    "reason": "Reason",
+    "correct": "✓ Correct! dmg: {damage}",
+    "wrong": "✗ Try again! -{damage} HP",
+    "opponentCorrect": "Opponent answered correctly! -{damage} HP",
+    "opponentWrong": "Opponent made a mistake! -{damage} HP"
   },
   "gameOver": {
     "victory": "VICTORY!",
@@ -86,7 +121,13 @@
     "home": "HOME",
     "duelAnalysis": "DUEL ANALYSIS",
     "viewAnalysis": "VIEW ANALYSIS",
-    "close": "CLOSE"
+    "close": "CLOSE",
+    "finalHPLabel": "Final HP",
+    "winnerLabel": "Winner",
+    "victoryMessages": ["VICTORY! 🏆", "YOU WIN! ⚔️", "LEGENDARY! 🌟", "UNSTOPPABLE! 🔥", "CHAMPION! 👑", "MASTERFUL! 🎯"],
+    "defeatMessages": ["DEFEAT... 💔", "GAME OVER 💀", "SO CLOSE... 😢", "NEXT TIME! 🎮", "ALMOST! 💪"],
+    "phrasesExhausted": "All phrases used!",
+    "hpDepleted": "HP reached zero!"
   },
   "profile": {
     "stats": "STATS",
@@ -179,6 +220,19 @@
   "confirm": {
     "logout": "Are you sure you want to logout?",
     "usernameEmpty": "Please enter a username"
+  },
+  "reconnect": {
+    "title": "RECONNECT",
+    "reconnecting": "Reconnecting...",
+    "backToHome": "BACK TO HOME"
+  },
+  "rematch": {
+    "waiting": "Waiting for opponent...",
+    "notReady": "Opponent is not ready for rematch",
+    "playAgain": "REMATCH",
+    "opponentWaiting": "Opponent wants rematch! Accept",
+    "cancelled": "Rematch cancelled",
+    "opponentLeft": "Opponent left the game"
   },
   "leaderboard": {
     "title": "LEADERBOARD",

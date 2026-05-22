@@ -565,6 +565,7 @@ type generatePhrasesReq struct {
 	Difficulty string `json:"difficulty"`
 	LangFrom   string `json:"lang_from"`
 	LangTo     string `json:"lang_to"`
+	Regenerate bool   `json:"regenerate,omitempty"`
 }
 
 func difficultyToInt(d string) int {
@@ -649,6 +650,16 @@ func (s *Server) handleGeneratePhrases(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Generating phrases for topic=%s difficulty=%s lang=%s->%s",
 		req.Topic, req.Difficulty, req.LangFrom, req.LangTo)
+
+	// If regenerating, delete old phrases for this room
+	if req.Regenerate {
+		deleted, err := repo.DeleteAIPhrasesByRoomCode(r.Context(), req.RoomID)
+		if err != nil {
+			log.Printf("Failed to delete old phrases: %v", err)
+		} else {
+			log.Printf("Deleted %d old phrases for room %s", deleted, req.RoomID)
+		}
+	}
 
 	generator := ai.NewGenerator()
 

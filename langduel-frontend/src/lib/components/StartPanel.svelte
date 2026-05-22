@@ -1,4 +1,6 @@
 <script>
+  import { _ } from 'svelte-i18n';
+
   export let flowMode = 'create';
   export let authMode = 'guest';
   export let authTab = 'login';
@@ -29,13 +31,13 @@
 </script>
 
 <div class="panel">
-  <h3>Start</h3>
+  <h3>{$_('home.play')}</h3>
   <div class="controls flow">
     <div class="toggle" role="tablist" aria-label="Flow">
-      <button class:active={flowMode === 'create'} type="button" on:click={() => (flowMode = 'create')}>Create</button>
-      <button class:active={flowMode === 'join'} type="button" on:click={() => (flowMode = 'join')}>Join</button>
+      <button class:active={flowMode === 'create'} type="button" on:click={() => (flowMode = 'create')}>{$_('play.create')}</button>
+      <button class:active={flowMode === 'join'} type="button" on:click={() => (flowMode = 'join')}>{$_('play.join')}</button>
     </div>
-    <button on:click={onConnect}>{flowMode === 'create' ? 'Create & Connect' : 'Join & Connect'}</button>
+    <button on:click={onConnect}>{flowMode === 'create' ? $_('play.createRoom') : $_('play.joinRoom')}</button>
   </div>
 
   {#if startError}
@@ -44,12 +46,12 @@
 
   <div class="controls two">
     <div class="toggle" role="tablist" aria-label="Mode">
-      <button class:active={authMode === 'guest'} type="button" on:click={() => onSetAuthMode('guest')}>Guest</button>
-      <button class:active={authMode === 'auth'} type="button" on:click={() => onSetAuthMode('auth')}>Auth</button>
+      <button class:active={authMode === 'guest'} type="button" on:click={() => onSetAuthMode('guest')}>{$_('auth.playAsGuestBtn')}</button>
+      <button class:active={authMode === 'auth'} type="button" on:click={() => onSetAuthMode('auth')}>{$_('auth.login')}</button>
     </div>
     <div class="status-badge">
       <span class={`status-dot ${authMode === 'auth' ? 'on' : ''}`}></span>
-      <span>Mode: {authMode === 'auth' ? 'Auth' : 'Guest'}</span>
+      <span>{$_('auth.guestMode')}: {authMode === 'auth' ? $_('auth.login') : $_('auth.guestMode')}</span>
     </div>
   </div>
 
@@ -57,23 +59,23 @@
     <div class="section">
       <div class="controls two">
         <div class="toggle" role="tablist" aria-label="Auth mode">
-          <button class:active={authTab === 'login'} type="button" on:click={() => (authTab = 'login')}>Login</button>
-          <button class:active={authTab === 'reg'} type="button" on:click={() => (authTab = 'reg')}>Register</button>
+          <button class:active={authTab === 'login'} type="button" on:click={() => (authTab = 'login')}>{$_('auth.login')}</button>
+          <button class:active={authTab === 'reg'} type="button" on:click={() => (authTab = 'reg')}>{$_('auth.register')}</button>
         </div>
-        <div class="small">Account access</div>
+        <div class="small">{$_('play.accountAccess')}</div>
       </div>
 
       {#if authTab === 'login'}
         <div class="controls three">
-          <input placeholder="Username" bind:value={authLogin} />
-          <input type="password" placeholder="Password" bind:value={authPass} />
-          <button on:click={onLogin}>Login</button>
+          <input placeholder={$_('auth.username')} bind:value={authLogin} />
+          <input type="password" placeholder={$_('auth.password')} bind:value={authPass} />
+          <button on:click={onLogin}>{$_('auth.loginBtn')}</button>
         </div>
       {:else}
         <div class="controls three">
-          <input placeholder="Email" bind:value={authEmail} />
-          <input type="password" placeholder="Confirm password" bind:value={regConfirm} />
-          <button on:click={onRegister}>Register</button>
+          <input placeholder={$_('auth.email')} bind:value={authEmail} />
+          <input type="password" placeholder={$_('auth.confirmPassword')} bind:value={regConfirm} />
+          <button on:click={onRegister}>{$_('auth.registerBtn')}</button>
         </div>
       {/if}
 
@@ -85,30 +87,30 @@
 
   <div class="section" id="blockCreate">
     <div class="controls two">
-      <h3 style="margin:0">Create Duel</h3>
-      <button on:click={() => (createCollapsed = !createCollapsed)}>{createCollapsed ? 'Expand' : 'Collapse'}</button>
+      <h3 style="margin:0">{$_('play.createDuel')}</h3>
+      <button on:click={() => (createCollapsed = !createCollapsed)}>{createCollapsed ? $_('play.expand') : $_('play.collapse')}</button>
     </div>
     {#if !createCollapsed}
       <div class="controls three">
-        <input placeholder="Nickname (Guest)" bind:value={createUser} />
+        <input placeholder={$_('play.nickname')} bind:value={createUser} />
         <select bind:value={createLang}>
           <option value="en">English</option>
         </select>
         <select bind:value={createTopic}>
-          <option value="default">Default pack</option>
-          <option value="animals">Animals</option>
-          <option value="travel">Travel</option>
-          <option value="food">Food</option>
+          <option value="default">{$_('play.defaultPack')}</option>
+          <option value="animals">{$_('topics.animals')}</option>
+          <option value="travel">{$_('topics.travel')}</option>
+          <option value="food">{$_('topics.food')}</option>
         </select>
       </div>
       <div class="controls three">
-        <input placeholder="room_id" bind:value={createRoom} />
-        <button on:click={onGenerateRoom}>Generate Room</button>
-        <div class="small">Create generates a room link.</div>
+        <input placeholder={$_('play.room')} bind:value={createRoom} />
+        <button on:click={onGenerateRoom}>{$_('play.generateRoom')}</button>
+        <div class="small">{$_('play.createRoom')}</div>
       </div>
       <div class="controls two">
-        <div class="link">Room link: <span>{createRoom ? buildRoomLink(createRoom) : '-'}</span></div>
-        <button on:click={onCopyRoom}>Copy Link</button>
+        <div class="link">{$_('play.roomLink')}: <span>{createRoom ? buildRoomLink(createRoom) : '-'}</span></div>
+        <button on:click={onCopyRoom}>{$_('play.copyLink')}</button>
       </div>
       {#if createCopyNote}
         <div class="small">{createCopyNote}</div>
@@ -118,11 +120,11 @@
 
   {#if flowMode === 'join'}
     <div class="section">
-      <h3>Join Duel</h3>
+      <h3>{$_('play.joinDuel')}</h3>
       <div class="controls three">
-        <input placeholder="Nickname (Guest)" bind:value={joinUser} />
-        <input placeholder="room_id" bind:value={joinRoom} />
-        <div class="small">Join by room id or link.</div>
+        <input placeholder={$_('play.nickname')} bind:value={joinUser} />
+        <input placeholder={$_('play.room')} bind:value={joinRoom} />
+        <div class="small">{$_('play.joinRoom')}</div>
       </div>
     </div>
   {/if}

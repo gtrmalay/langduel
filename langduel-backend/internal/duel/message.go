@@ -9,6 +9,7 @@ type Message struct {
 	Lang       string `json:"lang,omitempty"`
 	Answer     string `json:"answer"`
 	Speed      int    `json:"speed"`
+	RoundToken int    `json:"round_token,omitempty"`
 	Avatar     string `json:"avatar,omitempty"`
 	Ts         int64  `json:"ts,omitempty"`
 }

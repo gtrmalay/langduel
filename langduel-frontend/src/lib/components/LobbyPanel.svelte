@@ -10,7 +10,7 @@
 </script>
 
 <div class="panel">
-  <h3>Lobby</h3>
+  <h3>{$_('lobby.ready')}</h3>
   <div class="small">
     {#if lobbyText === 'lobby.waiting'}
       {$_('lobby.waiting')}
@@ -22,8 +22,8 @@
   </div>
   {#if isCreator}
     <div class="controls two">
-      <div class="link">Room link: <span>{currentRoom ? buildRoomLink(currentRoom) : '-'}</span></div>
-      <button on:click={onCopy}>Copy Link</button>
+      <div class="link">{$_('play.room')}: <span>{currentRoom ? buildRoomLink(currentRoom) : '-'}</span></div>
+      <button on:click={onCopy}>{$_('shop.select')}</button>
     </div>
     {#if lobbyCopyNote}
       <div class="small">{lobbyCopyNote}</div>
