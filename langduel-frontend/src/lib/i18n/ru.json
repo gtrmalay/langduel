@@ -37,14 +37,14 @@
     "collapse": "Свернуть",
     "nickname": "Никнейм (Гость)",
     "defaultPack": "Стандартный набор",
-    "direction": "Тип перевода",
+    "direction": "Направление",
     "accountAccess": "Доступ к аккаунту",
     "generatePhrases": "СГЕНЕРИРОВАТЬ ФРАЗЫ (AI)",
     "regeneratePhrases": "ПЕРЕГЕНЕРИРОВАТЬ ФРАЗЫ",
     "phrasesReady": "ФРАЗЫ ГОТОВЫ",
     "generating": "ГЕНЕРАЦИЯ...",
-    "regenerating": "ПЕРЕГЕНЕРАЦИЯ...",
-    "phrasesNote": "20 фраз готовы к дуэли!"
+    "phrasesNote": "20 фраз готовы к дуэли!",
+    "customTopicPlaceholder": "Введите тему..."
   },
   "topics": {
     "default": "Общее",
@@ -52,7 +52,8 @@
     "travel": "Путешествия",
     "food": "Еда",
     "movies": "Фильмы",
-    "sports": "Спорт"
+    "sports": "Спорт",
+    "custom": "🎯 Своя тема..."
   },
   "difficulty": {
     "beginner": "Начинающий",
@@ -86,23 +87,13 @@
     "unknownPhrase": "Неизвестная фраза",
     "halftime": "ПЕРЕРЫВ",
     "halftimeBreak": "Перерыв перед вторым таймом...",
-    "halfTimePause": "⏸ ПЕРЕРЫВ ⏸",
     "half2": "Тайм 2",
-    "correctHit": "✓ Правильно! dmg: {damage}",
-    "wrongHit": "✗ Попробуй ещё! -{damage} HP",
-    "opponentCorrectHit": "Соперник ответил правильно! -{damage} HP",
-    "opponentWrongHit": "Соперник ошибся! -{damage} HP",
     "half": "Тайм",
-    "halfDisplay": "Тайм {half}/2",
     "connectionLost": "Соединение потеряно. Переподключение...",
-    "winnerText": "Победитель"
-  },
-  "round": {
-    "timeUp": "Время вышло. Следующий раунд...",
-    "reason": "Причина",
-    "correct": "✓ Правильно! dmg: {damage}",
-    "wrong": "✗ Попробуй ещё! -{damage} HP",
-    "opponentCorrect": "Соперник ответил правильно! -{damage} HP",
+    "roundTimeout": "Время вышло. Следующий раунд...",
+    "correctInfo": "✓ Правильно! урон: {damage}",
+    "tryAgain": "✗ Попробуй ещё! -{damage} HP",
+    "opponentCorrect": "Соперник ответил! -{damage} HP",
     "opponentWrong": "Соперник ошибся! -{damage} HP"
   },
   "gameOver": {
@@ -122,12 +113,8 @@
     "duelAnalysis": "АНАЛИЗ ДУЭЛИ",
     "viewAnalysis": "АНАЛИЗ",
     "close": "ЗАКРЫТЬ",
-    "finalHPLabel": "Финал HP",
-    "winnerLabel": "Победитель",
-    "victoryMessages": ["ПОБЕДА! 🏆", "ТЫ ПОБЕДИЛ! ⚔️", "ЛЕГЕНДАРНО! 🌟", "НЕУДЕРЖИМ! 🔥", "ЧЕМПИОН! 👑", "МАСТЕРСКИ! 🎯"],
-    "defeatMessages": ["ПОРАЖЕНИЕ... 💔", "ИГРА ОКОНЧЕНА 💀", "ТАК БЛИЗКО... 😢", "В СЛЕДУЮЩИЙ РАЗ! 🎮", "ПОЧТИ! 💪"],
-    "phrasesExhausted": "Все фразы использованы!",
-    "hpDepleted": "HP на нуле!"
+    "phrasesExhausted": "Фразы закончились!",
+    "hpDepleted": "HP иссякло!"
   },
   "profile": {
     "stats": "СТАТИСТИКА",
@@ -241,6 +228,14 @@
     "playNow": "ИГРАТЬ",
     "games": "ИГР",
     "elo": "ELO"
+  },
+  "rematch": {
+    "waiting": "Ожидание соперника...",
+    "notReady": "Соперник не готов",
+    "cancelled": "Реванш отменён",
+    "opponentLeft": "Соперник покинул игру",
+    "opponentWaiting": "Соперник хочет реванш! Принять",
+    "playAgain": "ИГРАТЬ СНОВА"
   },
   "analysis": {
     "noAnalysis": "Анализ недоступен",

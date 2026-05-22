@@ -39,6 +39,7 @@ type Event struct {
 	Lang          string            `json:"lang,omitempty"`
 	Prompt        string            `json:"prompt,omitempty"`
 	CorrectAnswer string            `json:"correct_answer,omitempty"`
+	ValidAnswers  []string          `json:"valid_answers,omitempty"`
 	Players       []string          `json:"players,omitempty"`
 	HP            map[string]int    `json:"hp"`
 	Avatars       map[string]string `json:"avatars,omitempty"`

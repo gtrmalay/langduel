@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log"
 	"math"
+	"math/rand"
 	"sort"
 	"strings"
 	"time"
@@ -323,7 +324,7 @@ func (r *DuelRepo) DeletePendingDuel(ctx context.Context, roomCode string) error
 	return err
 }
 
-func (r *DuelRepo) CreateRound(ctx context.Context, duelID string, roundNumber int, phraseText, correctAnswer, lang, topic string, timeLimitMs int) (*Round, error) {
+func (r *DuelRepo) CreateRound(ctx context.Context, duelID string, roundNumber int, phraseText, correctAnswer, lang, topic string, timeLimitMs int, validAnswers []string) (*Round, error) {
 	var phraseID string
 	row := r.db.Pool.QueryRow(ctx,
 		`SELECT phrase_id FROM phrases WHERE text = $1 AND lang = $2 AND topic = $3 LIMIT 1`,
@@ -343,12 +344,16 @@ func (r *DuelRepo) CreateRound(ctx context.Context, duelID string, roundNumber i
 		}
 	}
 
+	if validAnswers == nil {
+		validAnswers = []string{}
+	}
+
 	row = r.db.Pool.QueryRow(ctx,
-		`INSERT INTO game_rounds (duel_id, round_number, phrase_id, correct_answer, time_limit_ms)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (duel_id, round_number) DO UPDATE SET phrase_id = EXCLUDED.phrase_id, correct_answer = EXCLUDED.correct_answer
+		`INSERT INTO game_rounds (duel_id, round_number, phrase_id, correct_answer, valid_answers, time_limit_ms)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (duel_id, round_number) DO UPDATE SET phrase_id = EXCLUDED.phrase_id, correct_answer = EXCLUDED.correct_answer, valid_answers = EXCLUDED.valid_answers
          RETURNING round_id`,
-		duelID, roundNumber, phraseID, correctAnswer, timeLimitMs,
+		duelID, roundNumber, phraseID, correctAnswer, validAnswers, timeLimitMs,
 	)
 	var roundID string
 	if err := row.Scan(&roundID); err != nil {
@@ -1192,28 +1197,25 @@ func (r *DuelRepo) DeleteAIPhrasesByRoomCode(ctx context.Context, roomCode strin
 	return tag.RowsAffected(), nil
 }
 
-// GetAIPhrases returns AI-generated phrases for a duel or room
+// GetAIPhrases returns AI-generated phrases for a duel or room.
+// Fetches all unused phrases (no SQL LIMIT) so Go-level dedup sees the full set,
+// then shuffles and caps at 20. Ordered by created_at DESC so newest batch wins.
 func (r *DuelRepo) GetAIPhrases(ctx context.Context, duelID, roomCode string) ([]AIPhrase, error) {
 	var rows pgx.Rows
 	var err error
 
-	// If duelID is empty, only search by room_code
 	if duelID == "" {
-		query := `
+		rows, err = r.db.Pool.Query(ctx, `
 			SELECT phrase_id, duel_id, prompt, answers, topic, difficulty, lang_from, lang_to, used, created_at
 			FROM ai_phrases
 			WHERE used = false AND room_code = $1
-			ORDER BY RANDOM()
-			LIMIT 20`
-		rows, err = r.db.Pool.Query(ctx, query, roomCode)
+			ORDER BY created_at DESC`, roomCode)
 	} else {
-		query := `
+		rows, err = r.db.Pool.Query(ctx, `
 			SELECT phrase_id, duel_id, prompt, answers, topic, difficulty, lang_from, lang_to, used, created_at
 			FROM ai_phrases
 			WHERE used = false AND (duel_id = $1 OR room_code = $2)
-			ORDER BY RANDOM()
-			LIMIT 20`
-		rows, err = r.db.Pool.Query(ctx, query, duelID, roomCode)
+			ORDER BY created_at DESC`, duelID, roomCode)
 	}
 
 	if err != nil {
@@ -1221,8 +1223,9 @@ func (r *DuelRepo) GetAIPhrases(ctx context.Context, duelID, roomCode string) ([
 	}
 	defer rows.Close()
 
-	var phrases []AIPhrase
+	// Deduplicate by prompt (case-insensitive), preferring newest rows (already sorted DESC)
 	seenPrompts := make(map[string]bool)
+	var all []AIPhrase
 	for rows.Next() {
 		var p AIPhrase
 		var createdAt time.Time
@@ -1234,10 +1237,19 @@ func (r *DuelRepo) GetAIPhrases(ctx context.Context, duelID, roomCode string) ([
 		promptLower := strings.ToLower(strings.TrimSpace(p.Prompt))
 		if !seenPrompts[promptLower] {
 			seenPrompts[promptLower] = true
-			phrases = append(phrases, p)
+			all = append(all, p)
 		}
 	}
-	return phrases, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Shuffle for game variety, then cap at 20
+	rand.Shuffle(len(all), func(i, j int) { all[i], all[j] = all[j], all[i] })
+	if len(all) > 20 {
+		all = all[:20]
+	}
+	return all, nil
 }
 
 // MarkAIPhraseUsed marks an AI phrase as used
@@ -1315,7 +1327,28 @@ func (r *DuelRepo) EnsureSchemaFixes(ctx context.Context) error {
 		CREATE UNIQUE INDEX IF NOT EXISTS idx_player_answers_round_participant
 		ON player_answers(round_id, participant_id)
 	`)
-	return err
+	if err != nil {
+		return err
+	}
+	// Add valid_answers column to game_rounds for storing all accepted answer variants
+	_, err = r.db.Pool.Exec(ctx, `
+		ALTER TABLE game_rounds ADD COLUMN IF NOT EXISTS valid_answers TEXT[] DEFAULT '{}'
+	`)
+	if err != nil {
+		return err
+	}
+	// Expand short VARCHAR columns that break on long AI-generated prompts and custom topics
+	for _, ddl := range []string{
+		`ALTER TABLE ai_phrases ALTER COLUMN prompt TYPE TEXT`,
+		`ALTER TABLE ai_phrases ALTER COLUMN topic TYPE TEXT`,
+		`ALTER TABLE phrases     ALTER COLUMN topic TYPE TEXT`,
+		`ALTER TABLE duels       ALTER COLUMN theme TYPE TEXT`,
+	} {
+		if _, err = r.db.Pool.Exec(ctx, ddl); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // DuelDetail represents detailed duel information for analysis
@@ -1529,6 +1562,7 @@ type RoundAnalysis struct {
 	RoundNumber   int             `json:"round_number"`
 	Phrase        string          `json:"phrase"`
 	CorrectAnswer string          `json:"correct_answer"`
+	ValidAnswers  []string        `json:"valid_answers"`
 	Answers       []AnswerSummary `json:"answers"`
 }
 
@@ -1569,7 +1603,7 @@ func (r *DuelRepo) GetDuelAnalysis(ctx context.Context, duelID string) (*DuelAna
 
 	// Get rounds with phrases
 	rRows, err := r.db.Pool.Query(ctx, `
-		SELECT gr.round_id::text, COALESCE(gr.round_number, 0), COALESCE(p.text, ''), COALESCE(gr.correct_answer, '')
+		SELECT gr.round_id::text, COALESCE(gr.round_number, 0), COALESCE(p.text, ''), COALESCE(gr.correct_answer, ''), COALESCE(gr.valid_answers, '{}')
 		FROM game_rounds gr
 		LEFT JOIN phrases p ON p.phrase_id = gr.phrase_id
 		WHERE gr.duel_id = $1
@@ -1583,18 +1617,22 @@ func (r *DuelRepo) GetDuelAnalysis(ctx context.Context, duelID string) (*DuelAna
 	for rRows.Next() {
 		var roundID string
 		var roundNum int
-		var phrase string
-		var correctAnswer string
-		if err := rRows.Scan(&roundID, &roundNum, &phrase, &correctAnswer); err != nil {
+		var phrase, correctAnswer string
+		var validAnswers []string
+		if err := rRows.Scan(&roundID, &roundNum, &phrase, &correctAnswer, &validAnswers); err != nil {
 			continue
 		}
 		if roundID == "" {
 			continue
 		}
+		if validAnswers == nil {
+			validAnswers = []string{}
+		}
 		roundMap[roundID] = RoundAnalysis{
 			RoundNumber:   roundNum,
 			Phrase:        phrase,
 			CorrectAnswer: correctAnswer,
+			ValidAnswers:  validAnswers,
 			Answers:       []AnswerSummary{},
 		}
 	}

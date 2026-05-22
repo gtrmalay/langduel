@@ -300,7 +300,7 @@
   $: inputDisabled = isHalftime || gameOverOpen;
   
   // Combined round display
-  $: roundDisplay = translatedRoundInfo ? translatedRoundInfo + (currentHalf ? ` (${$_('battle.half').replace('{half}', currentHalf)}/2)` : '') : $_('battle.round').toUpperCase();
+  $: roundDisplay = translatedRoundInfo ? translatedRoundInfo + (currentHalf ? ` (${$_('battle.half')} ${currentHalf}/2)` : '') : $_('battle.round').toUpperCase();
 </script>
 
 <div class="battle-container" class:shake={screenShake}>
@@ -522,7 +522,12 @@
                     <span class="round-number">#{round.round_number || i + 1}</span>
                     <span class="round-phrase">{round.phrase || $_('battle.unknownPhrase')}</span>
                   </div>
-                  {#if round.correct_answer}
+                  {#if round.valid_answers && round.valid_answers.length > 0}
+                    <div class="correct-answer">
+                      <span class="correct-label">{$_('analysis.correctAnswer')}:</span>
+                      <span class="correct-value">{round.valid_answers.join(', ')}</span>
+                    </div>
+                  {:else if round.correct_answer}
                     <div class="correct-answer">
                       <span class="correct-label">{$_('analysis.correctAnswer')}:</span>
                       <span class="correct-value">{round.correct_answer}</span>

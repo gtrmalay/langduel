@@ -1,78 +1,9 @@
 import { writable, get } from 'svelte/store';
 import { goto } from '$app/navigation';
-import { locale } from 'svelte-i18n';
+import { _ } from 'svelte-i18n';
 
-const translations = {
-  en: {
-    halfTimePause: '⏸ HALFTIME ',
-    half2: 'Half 2 / 2',
-    connectionLost: 'Connection lost. Reconnecting...',
-    winnerLabel: 'Winner',
-    finalHPLabel: 'Final HP',
-    victoryMessages: ['VICTORY! 🏆', 'YOU WIN! ⚔️', 'LEGENDARY! 🌟', 'UNSTOPPABLE! 🔥', 'CHAMPION! 👑', 'MASTERFUL! 🎯'],
-    defeatMessages: ['DEFEAT... 💔', 'GAME OVER 💀', 'SO CLOSE... 😢', 'NEXT TIME! ', 'ALMOST! 💪'],
-    reconnecting: 'Reconnecting...',
-phrasesExhausted: 'All phrases used!',
-    hpDepleted: 'HP reached zero!',
-    finalHPLabel: 'Final HP',
-    'gameOver.hpDepleted': 'HP reached zero!',
-    'gameOver.finalHPLabel': 'Final HP',
-    'gameOver.phrasesExhausted': 'All phrases used!',
-    'gameOver.victoryMessages': ['VICTORY!', 'YOU WIN!', 'LEGENDARY!', 'UNSTOPPABLE!', 'CHAMPION!', 'MASTERFUL!'],
-    'gameOver.defeatMessages': ['DEFEAT...', 'GAME OVER', 'SO CLOSE...', 'NEXT TIME!', 'ALMOST!'],
-    'gameOver.gameOver': 'GAME OVER',
-    'gameOver.winnerLabel': 'Winner',
-    'battle.round': 'Round',
-    'battle.correctHit': '✓ Correct! dmg: {damage}',
-    'battle.wrongHit': '✗ Wrong! -{damage} HP',
-    'battle.opponentCorrectHit': 'Opponent correct! -{damage} HP',
-    'battle.opponentWrongHit': 'Opponent wrong! -{damage} HP',
-    'rematch.waiting': 'Waiting for opponent...',
-    'rematch.notReady': 'Opponent not ready',
-    'rematch.cancelled': 'Rematch cancelled',
-    'rematch.opponentLeft': 'Opponent left the game',
-    'rematch.opponentWaiting': 'Opponent wants rematch! Accept',
-  },
-  ru: {
-    halfTimePause: '⏸ ПЕРЕРЫВ ⏸',
-    half2: 'Тайм 2 / 2',
-    connectionLost: 'Соединение потеряно. Переподключение...',
-    winnerLabel: 'Победитель',
-    finalHPLabel: 'Финал HP',
-    victoryMessages: ['ПОБЕДА! 🏆', 'ТЫ ПОБЕДИЛ! ⚔️', 'ЛЕГЕНДАРНО! 🌟', 'НЕУДЕРЖИМ! 🔥', 'ЧЕМПИОН! 👑', 'МАСТЕРСКИ! 🎯'],
-    defeatMessages: ['ПОРАЖЕНИЕ... 💔', 'ИГРА ОКОНЧЕНА 💀', 'ТАК БЛИЗКО... 😢', 'В СЛЕДУЮЩИЙ РАЗ! 🎮', 'ПОЧТИ! 💪'],
-    reconnecting: 'Переподключение...',
-    phrasesExhausted: 'Все фразы использованы!',
-    hpDepleted: 'HP на нуле!',
-    finalHPLabel: 'Финал HP',
-    'gameOver.hpDepleted': 'HP на нуле!',
-    'gameOver.finalHPLabel': 'Финал HP',
-    'gameOver.phrasesExhausted': 'Все фразы использованы!',
-    'gameOver.victoryMessages': ['ПОБЕДА!', 'ТЫ ПОБЕДИЛ!', 'ЛЕГЕНДАРНО!', 'НЕУДЕРЖИМ!', 'ЧЕМПИОН!', 'МАСТЕРСКИ!'],
-    'gameOver.defeatMessages': ['ПОРАЖЕНИЕ...', 'ИГРА ОКОНЧЕНА', 'ТАК БЛИЗКО...', 'В СЛЕДУЮЩИЙ РАЗ!', 'ПОЧТИ!'],
-    'gameOver.gameOver': 'ИГРА ОКОНЧЕНА',
-    'gameOver.winnerLabel': 'Победитель',
-    'battle.round': 'Раунд',
-    'battle.correctHit': '✓ Правильно! dmg: {damage}',
-    'battle.wrongHit': '✗ Попробуй ещё! -{damage} HP',
-    'battle.opponentCorrectHit': 'Соперник ответил правильно! -{damage} HP',
-    'battle.opponentWrongHit': 'Соперник ошибся! -{damage} HP',
-    'rematch.waiting': 'Ожидание соперника...',
-    'rematch.notReady': 'Соперник не готов',
-    'rematch.cancelled': 'Реванш отменён',
-    'rematch.opponentLeft': 'Соперник покинул игру',
-    'rematch.opponentWaiting': 'Соперник хочет реванш! Принять',
-  }
-};
-
-function t(key) {
-  try {
-    const currentLocale = get(locale) || 'en';
-    const lang = (currentLocale && currentLocale.startsWith('ru')) ? 'ru' : 'en';
-    return translations[lang][key] || translations.en[key] || key;
-  } catch {
-    return translations.en[key] || key;
-  }
+function t(key, values) {
+  return get(_)(key, values ? { values } : undefined);
 }
 
 const initialState = {
@@ -630,7 +561,7 @@ function connectAndJoin() {
     }
 
     if (data.type === 'round_end') {
-      setState({ promptText: 'round.timeUp', roundInfo: 'round.reason: ' + (data.reason || 'timeout') });
+      setState({ promptText: t('battle.roundTimeout'), roundInfo: '' });
       stopCountdown();
       roundStartAt = null;
     }
@@ -656,17 +587,17 @@ function connectAndJoin() {
       
       if (isMyAnswer) {
         if (data.correct) {
-          setState({ inputCorrect: true, roundInfo: t('battle.correctHit').replace('{damage}', data.damage) });
+          setState({ inputCorrect: true, roundInfo: t('battle.correctInfo', { damage: data.damage }) });
           setTimeout(() => setState({ inputCorrect: false }), 400);
         } else {
-          setState({ inputWrong: true, roundInfo: t('battle.wrongHit').replace('{damage}', data.self_damage || 0) });
+          setState({ inputWrong: true, roundInfo: t('battle.tryAgain', { damage: data.self_damage || 0 }) });
           setTimeout(() => setState({ inputWrong: false }), 600);
         }
       } else {
         if (data.correct) {
-          setState({ roundInfo: t('battle.opponentCorrectHit').replace('{damage}', data.damage) });
+          setState({ roundInfo: t('battle.opponentCorrect', { damage: data.damage }) });
         } else {
-          setState({ roundInfo: t('battle.opponentWrongHit').replace('{damage}', data.self_damage || 0) });
+          setState({ roundInfo: t('battle.opponentWrong', { damage: data.self_damage || 0 }) });
         }
       }
       
@@ -678,7 +609,7 @@ function connectAndJoin() {
     }
 
 if (data.type === 'halftime') {
-      setState({ promptText: data.prompt || t('halfTimePause'), roundInfo: t('half2') });
+      setState({ promptText: data.prompt || t('battle.halftime'), roundInfo: t('battle.half') + ' 2 / 2' });
       applyHP(data.hp);
       stopCountdown();
       roundStartAt = null;
@@ -690,10 +621,10 @@ if (data.type === 'halftime') {
     }
 
     if (data.type === 'game_over') {
-      setState({ 
+      setState({
         gameEndedNormally: true,
-        promptText: t('gameOver.winnerLabel') + ': ' + data.winner_id, 
-        roundInfo: t('gameOver.gameOver') 
+        promptText: t('battle.gameOver'),
+        roundInfo: t('battle.gameOver')
       });
       if (data.duel_id) {
         setState({ currentDuelId: data.duel_id });
@@ -727,16 +658,15 @@ if (data.type === 'halftime') {
       
       const winner = data.winner_id;
       const isWinner = winner && winner === get(state).currentUser;
-      const winMessages = t('gameOver.victoryMessages');
-      const loseMessages = t('gameOver.defeatMessages');
-      
+      const winKeys = ['gameOver.victory', 'gameOver.youWin', 'gameOver.legendary', 'gameOver.unstoppable', 'gameOver.champion', 'gameOver.masterful'];
+      const loseKeys = ['gameOver.defeat', 'gameOver.gameOver', 'gameOver.soClose', 'gameOver.nextTime', 'gameOver.almost'];
+
+
       let gameText;
       if (isWinner) {
-        const idx = Math.floor(Math.random() * winMessages.length);
-        gameText = winMessages[idx];
+        gameText = t(winKeys[Math.floor(Math.random() * winKeys.length)]);
       } else {
-        const idx = Math.floor(Math.random() * loseMessages.length);
-        gameText = loseMessages[idx];
+        gameText = t(loseKeys[Math.floor(Math.random() * loseKeys.length)]);
       }
       
       let eloInfo = '';
@@ -758,7 +688,7 @@ if (data.type === 'halftime') {
       setState({
         gameOverOpen: true,
         gameOverText: gameText + eloInfo,
-        gameOverHP: t('gameOver.finalHPLabel') + ' - ' + a + ' | ' + b,
+        gameOverHP: t('battle.finalHP') + ' - ' + a + ' | ' + b,
         gameOverReason: reasonText,
         isGameWinner: isWinner
       });

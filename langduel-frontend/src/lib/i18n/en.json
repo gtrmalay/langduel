@@ -43,8 +43,8 @@
     "regeneratePhrases": "REGENERATE PHRASES",
     "phrasesReady": "PHRASES READY",
     "generating": "GENERATING...",
-    "regenerating": "REGENERATING...",
-    "phrasesNote": "20 phrases ready for your duel!"
+    "phrasesNote": "20 phrases ready for your duel!",
+    "customTopicPlaceholder": "Enter your topic..."
   },
   "topics": {
     "default": "General",
@@ -52,7 +52,8 @@
     "travel": "Travel",
     "food": "Food",
     "movies": "Movies",
-    "sports": "Sports"
+    "sports": "Sports",
+    "custom": "🎯 Custom..."
   },
   "difficulty": {
     "beginner": "Beginner",
@@ -86,24 +87,14 @@
     "unknownPhrase": "Unknown phrase",
     "halftime": "HALFTIME",
     "halftimeBreak": "Break before second half...",
-    "halfTimePause": "⏸ HALFTIME ⏸",
     "half2": "Half 2",
-    "correctHit": "✓ Correct! dmg: {damage}",
-    "wrongHit": "✗ Wrong! -{damage} HP",
-    "opponentCorrectHit": "Opponent correct! -{damage} HP",
-    "opponentWrongHit": "Opponent wrong! -{damage} HP",
     "half": "Half",
-    "halfDisplay": "Half {half}/2",
     "connectionLost": "Connection lost. Reconnecting...",
-    "winnerText": "Winner"
-  },
-  "round": {
-    "timeUp": "Time's up. Next round...",
-    "reason": "Reason",
-    "correct": "✓ Correct! dmg: {damage}",
-    "wrong": "✗ Try again! -{damage} HP",
-    "opponentCorrect": "Opponent answered correctly! -{damage} HP",
-    "opponentWrong": "Opponent made a mistake! -{damage} HP"
+    "roundTimeout": "Time's up. Next round...",
+    "correctInfo": "✓ Correct! dmg: {damage}",
+    "tryAgain": "✗ Try again! -{damage} HP",
+    "opponentCorrect": "Opponent correct! -{damage} HP",
+    "opponentWrong": "Opponent missed! -{damage} HP"
   },
   "gameOver": {
     "victory": "VICTORY!",
@@ -122,12 +113,8 @@
     "duelAnalysis": "DUEL ANALYSIS",
     "viewAnalysis": "VIEW ANALYSIS",
     "close": "CLOSE",
-    "finalHPLabel": "Final HP",
-    "winnerLabel": "Winner",
-    "victoryMessages": ["VICTORY! 🏆", "YOU WIN! ⚔️", "LEGENDARY! 🌟", "UNSTOPPABLE! 🔥", "CHAMPION! 👑", "MASTERFUL! 🎯"],
-    "defeatMessages": ["DEFEAT... 💔", "GAME OVER 💀", "SO CLOSE... 😢", "NEXT TIME! 🎮", "ALMOST! 💪"],
-    "phrasesExhausted": "All phrases used!",
-    "hpDepleted": "HP reached zero!"
+    "phrasesExhausted": "Phrases exhausted!",
+    "hpDepleted": "HP depleted!"
   },
   "profile": {
     "stats": "STATS",
@@ -241,6 +228,14 @@
     "playNow": "PLAY NOW",
     "games": "GAMES",
     "elo": "ELO"
+  },
+  "rematch": {
+    "waiting": "Waiting for opponent...",
+    "notReady": "Opponent not ready",
+    "cancelled": "Rematch cancelled",
+    "opponentLeft": "Opponent left the game",
+    "opponentWaiting": "Opponent wants rematch! Accept",
+    "playAgain": "PLAY AGAIN"
   },
   "analysis": {
     "noAnalysis": "No analysis available",

@@ -184,10 +184,70 @@ func (r *Room) SetDuelID(duelID string) {
 	r.DuelID = duelID
 }
 
+// normalizeAnswer приводит ответ к единому виду: lowercase, trim, ё→е
+func normalizeAnswer(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	s = strings.ReplaceAll(s, "ё", "е")
+	return strings.Join(strings.Fields(s), " ")
+}
+
+// levenshtein считает расстояние редактирования между двумя строками (по рунам)
+func levenshtein(a, b string) int {
+	ra, rb := []rune(a), []rune(b)
+	la, lb := len(ra), len(rb)
+	if la == 0 {
+		return lb
+	}
+	if lb == 0 {
+		return la
+	}
+	prev := make([]int, lb+1)
+	curr := make([]int, lb+1)
+	for j := 0; j <= lb; j++ {
+		prev[j] = j
+	}
+	for i := 1; i <= la; i++ {
+		curr[0] = i
+		for j := 1; j <= lb; j++ {
+			cost := 1
+			if ra[i-1] == rb[j-1] {
+				cost = 0
+			}
+			curr[j] = minInt(minInt(curr[j-1]+1, prev[j]+1), prev[j-1]+cost)
+		}
+		prev, curr = curr, prev
+	}
+	return prev[lb]
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// allowedDistance — сколько опечаток допустимо для слова данной длины
+func allowedDistance(validAnswer string) int {
+	n := len([]rune(validAnswer))
+	switch {
+	case n <= 3:
+		return 0 // короткие слова — только точное совпадение
+	case n <= 9:
+		return 1 // средние — 1 опечатка
+	default:
+		return 2 // длинные — 2 опечатки
+	}
+}
+
 func (r *Room) IsAnswerCorrect(answer string) bool {
-	normalized := strings.ToLower(strings.TrimSpace(answer))
+	norm := normalizeAnswer(answer)
 	for _, valid := range r.ValidAnswers {
-		if strings.ToLower(strings.TrimSpace(valid)) == normalized {
+		normValid := normalizeAnswer(valid)
+		if norm == normValid {
+			return true
+		}
+		if maxDist := allowedDistance(normValid); maxDist > 0 && levenshtein(norm, normValid) <= maxDist {
 			return true
 		}
 	}
@@ -268,6 +328,7 @@ func (r *Room) roundStartEventLocked() Event {
 		Lang:          r.Lang,
 		Prompt:        r.Prompt,
 		CorrectAnswer: r.Expected,
+		ValidAnswers:  r.ValidAnswers,
 		HP:            r.hpMapLocked(),
 	}
 }

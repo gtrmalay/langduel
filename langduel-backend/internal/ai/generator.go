@@ -14,7 +14,7 @@ import (
 
 const (
 	OpenRouterBaseURL = "https://openrouter.ai/api/v1"
-	DefaultModel      = "google/gemma-3-4b-it:free"
+	DefaultModel      = "google/gemini-2.0-flash-001"
 	GenerationTimeout = 120 * time.Second
 )
 
@@ -51,6 +51,7 @@ func (g *Generator) GeneratePhrases(ctx context.Context, topic, difficulty, lang
 	}
 
 	messages := g.buildMessages(topic, difficulty, langFrom, langTo, count)
+	ruToEn := langFrom == "ru" && langTo == "en"
 
 	reqBody := map[string]interface{}{
 		"model":       g.model,
@@ -114,7 +115,16 @@ func (g *Generator) GeneratePhrases(ctx context.Context, topic, difficulty, lang
 	content = strings.TrimSuffix(content, "```")
 	content = strings.TrimSpace(content)
 
-	return g.parsePhrases(content)
+	phrases, err := g.parsePhrases(content, ruToEn)
+	if err != nil {
+		// Log raw response to help debug parse failures
+		preview := content
+		if len(preview) > 500 {
+			preview = preview[:500] + "..."
+		}
+		return nil, fmt.Errorf("failed to parse valid phrases (raw: %s): %w", preview, err)
+	}
+	return phrases, nil
 }
 
 func (g *Generator) buildMessages(topic, difficulty, langFrom, langTo string, count int) []map[string]string {
@@ -125,32 +135,65 @@ func (g *Generator) buildMessages(topic, difficulty, langFrom, langTo string, co
 		topicName = "casual slang"
 	}
 
-	userPrompt := fmt.Sprintf(`Generate %d simple English vocabulary words for a Russian translation game.
+	ruToEn := langFrom == "ru" && langTo == "en"
 
-TOPIC: %s
-The words MUST be directly related to this specific topic. Do NOT include loosely related words.
+	var userPrompt string
+	if ruToEn {
+		userPrompt = fmt.Sprintf(`Generate a JSON vocabulary list for a Russian-to-English translation game.
 
-RULES (MANDATORY):
-- prompt: English word or "to [verb]" for verbs
-- answers: 5-8 DIFFERENT Russian translations (synonyms, colloquial forms)
-- NO duplicates in answers array
-- All prompts must be UNIQUE
-- Words MUST be directly related to "%s"
+TOPIC: "%s"
+Generate exactly %d entries. Each entry: a Russian word as the prompt, English translations as answers.
 
-BAD examples (wrong topic): "pepper" for kitchen utensils, "car" for fruits
-GOOD examples (correct topic): "knife" for kitchen utensils, "apple" for fruits
+RULES:
+- "prompt": real Russian word/phrase (Cyrillic only, no Latin)
+- "answers": ALL English translations a player might write — put the most common one FIRST, then synonyms, colloquial forms
+- Minimum 5 answers per entry, aim for 7-8
+- No duplicate prompts, no duplicate answers within one entry
+- Every prompt must be a real Russian word related to the topic
 
-OUTPUT FORMAT (JSON only):
-[{"prompt":"knife","answers":["нож","ножик","лезвие"]}]
+❌ BAD — prompt is not a real word for the topic, answers are incomplete:
+{"prompt":"кошелёк","answers":["wallet"]}
 
-Generate %d words about "%s":`, count, topicName, topicName, count, topicName)
+✅ GOOD — complete synonym coverage:
+{"prompt":"кошелёк","answers":["wallet","purse","billfold","pocketbook","coin purse"]}
+{"prompt":"обувь","answers":["shoes","footwear","boots","sneakers","slippers","sandals"]}
+{"prompt":"зонт","answers":["umbrella","brolly","parasol","rain umbrella"]}
+
+Output ONLY a valid JSON array, no markdown fences, no explanation:
+[{"prompt":"...","answers":["...","...","...","...","..."]}]`, topicName, count)
+	} else {
+		userPrompt = fmt.Sprintf(`Generate a JSON vocabulary list for an English-to-Russian translation game.
+
+TOPIC: "%s"
+Generate exactly %d entries. Each entry: a real English word as the prompt, Russian translations as answers.
+
+RULES:
+- "prompt": real English word/phrase (Latin only, no Cyrillic). NEVER use transliterations of Russian words (e.g. "banya", "blini", "kvass" are only OK if the topic is specifically about Russian culture).
+- "answers": ALL Russian translations a player might write — put the most common/obvious one FIRST, then synonyms, colloquial forms, diminutives
+- Minimum 5 answers per entry, aim for 7-8
+- No duplicate prompts, no duplicate answers within one entry
+- Every prompt must be a real English dictionary word
+
+❌ BAD — wrong language in prompt, missing obvious translations:
+{"prompt":"кошмар","answers":["nightmare"]}
+{"prompt":"nightmare","answers":["ужасный сон","страшный сон"]}
+
+✅ GOOD — correct prompt language, first answer is the most obvious Russian word:
+{"prompt":"nightmare","answers":["кошмар","страшный сон","ужас","кошмарный сон","жуть"]}
+{"prompt":"wallet","answers":["кошелёк","кошелек","бумажник","портмоне","кошель"]}
+{"prompt":"homework","answers":["домашняя работа","домашнее задание","домашка","задание на дом","уроки"]}
+{"prompt":"umbrella","answers":["зонт","зонтик","зонтище","зонтик от дождя"]}
+
+Output ONLY a valid JSON array, no markdown fences, no explanation:
+[{"prompt":"...","answers":["...","...","...","...","..."]}]`, topicName, count)
+	}
 
 	return []map[string]string{
 		{"role": "user", "content": userPrompt},
 	}
 }
 
-func (g *Generator) parsePhrases(content string) ([]PhraseResponse, error) {
+func (g *Generator) parsePhrases(content string, ruToEn bool) ([]PhraseResponse, error) {
 	if content == "" {
 		return nil, fmt.Errorf("empty response")
 	}
@@ -173,6 +216,22 @@ func (g *Generator) parsePhrases(content string) ([]PhraseResponse, error) {
 		return false
 	}
 
+	// promptOK: для en→ru промпт должен быть латиницей, для ru→en — кириллицей
+	promptOK := func(s string) bool {
+		if ruToEn {
+			return containsCyrillic(s) && !containsLatin(s)
+		}
+		return containsLatin(s) && !containsCyrillic(s)
+	}
+
+	// answerOK: для en→ru ответы кириллицей, для ru→en — латиницей
+	answerOK := func(s string) bool {
+		if ruToEn {
+			return containsLatin(s)
+		}
+		return containsCyrillic(s)
+	}
+
 	tryParse := func(data string) ([]PhraseResponse, bool) {
 		var phrases []PhraseResponse
 		if err := json.Unmarshal([]byte(data), &phrases); err != nil {
@@ -193,7 +252,7 @@ func (g *Generator) parsePhrases(content string) ([]PhraseResponse, error) {
 			seenAnswers := make(map[string]bool)
 			for _, a := range p.Answers {
 				lower := strings.ToLower(strings.TrimSpace(a))
-				if lower != "" && containsCyrillic(lower) && !seenAnswers[lower] {
+				if lower != "" && answerOK(lower) && !seenAnswers[lower] {
 					seenAnswers[lower] = true
 					validAnswers = append(validAnswers, lower)
 				}
@@ -201,14 +260,7 @@ func (g *Generator) parsePhrases(content string) ([]PhraseResponse, error) {
 
 			promptLower := strings.ToLower(strings.TrimSpace(p.Prompt))
 
-			isValidPrompt := false
-			if strings.HasPrefix(promptLower, "to ") {
-				isValidPrompt = containsLatin(promptLower) && !containsCyrillic(promptLower) && !seenPrompts[promptLower]
-			} else {
-				isValidPrompt = containsLatin(promptLower) && !containsCyrillic(promptLower) && !seenPrompts[promptLower]
-			}
-
-			if len(validAnswers) >= 1 && isValidPrompt {
+			if len(validAnswers) >= 1 && promptOK(promptLower) && !seenPrompts[promptLower] {
 				seenPrompts[promptLower] = true
 				validPhrases = append(validPhrases, PhraseResponse{
 					Prompt:  promptLower,

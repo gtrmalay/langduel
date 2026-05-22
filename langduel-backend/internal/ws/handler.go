@@ -428,7 +428,7 @@ func handleJoin(c *Client, msg duel.Message) {
 					if err := repo.MarkDuelStarted(ctx, duelID); err != nil {
 						log.Printf("DB MarkDuelStarted error: %v", err)
 					}
-					rnd, err := repo.CreateRound(ctx, duelID, ev.Round, ev.Prompt, ev.CorrectAnswer, ev.Lang, ev.Topic, int(roundTimeout/time.Millisecond))
+					rnd, err := repo.CreateRound(ctx, duelID, ev.Round, ev.Prompt, ev.CorrectAnswer, ev.Lang, ev.Topic, int(roundTimeout/time.Millisecond), ev.ValidAnswers)
 					if err != nil {
 						log.Printf("DB CreateRound error: %v", err)
 					} else {
@@ -481,7 +481,7 @@ func handleAnswer(c *Client, msg duel.Message) {
 					if err := repo.MarkDuelStarted(ctx, duelID); err != nil {
 						log.Printf("DB MarkDuelStarted error: %v", err)
 					}
-					rnd, err := repo.CreateRound(ctx, duelID, ev.Round, ev.Prompt, ev.CorrectAnswer, ev.Lang, ev.Topic, int(roundTimeout/time.Millisecond))
+					rnd, err := repo.CreateRound(ctx, duelID, ev.Round, ev.Prompt, ev.CorrectAnswer, ev.Lang, ev.Topic, int(roundTimeout/time.Millisecond), ev.ValidAnswers)
 					if err != nil {
 						log.Printf("DB CreateRound error: %v", err)
 					} else {
@@ -601,6 +601,26 @@ func handleNextRound(c *Client, msg duel.Message) {
 
 	for _, ev := range events {
 		if ev.Type == "round_start" {
+			if repo != nil {
+				ctx := context.Background()
+				roomDuelID.mu.Lock()
+				duelID := roomDuelID.byRoom[ev.RoomID]
+				roomDuelID.mu.Unlock()
+				if duelID != "" {
+					log.Printf("DB round_start (halftime): room=%s duel_id=%s round=%d", ev.RoomID, duelID, ev.Round)
+					rnd, err := repo.CreateRound(ctx, duelID, ev.Round, ev.Prompt, ev.CorrectAnswer, ev.Lang, ev.Topic, int(roundTimeout/time.Millisecond), ev.ValidAnswers)
+					if err != nil {
+						log.Printf("DB CreateRound error: %v", err)
+					} else {
+						roomRoundID.mu.Lock()
+						if roomRoundID.byRoomRound[ev.RoomID] == nil {
+							roomRoundID.byRoomRound[ev.RoomID] = make(map[int]string)
+						}
+						roomRoundID.byRoomRound[ev.RoomID][ev.Round] = rnd.ID
+						roomRoundID.mu.Unlock()
+					}
+				}
+			}
 			scheduleRoundTimeout(ev.RoomID, ev.RoundToken)
 		}
 		broadcastRoom(c.hub, c.roomID, ev)
@@ -798,7 +818,7 @@ func handleRematch(c *Client, msg duel.Message) {
 				roomDuelID.mu.Unlock()
 				if duelID != "" {
 					_ = repo.MarkDuelStarted(ctx, duelID)
-					rnd, err := repo.CreateRound(ctx, duelID, ev.Round, ev.Prompt, ev.CorrectAnswer, ev.Lang, ev.Topic, int(roundTimeout/time.Millisecond))
+					rnd, err := repo.CreateRound(ctx, duelID, ev.Round, ev.Prompt, ev.CorrectAnswer, ev.Lang, ev.Topic, int(roundTimeout/time.Millisecond), ev.ValidAnswers)
 					if err != nil {
 						log.Printf("DB CreateRound error: %v", err)
 					} else {
@@ -1027,7 +1047,7 @@ func scheduleRoundTimeout(roomID string, token int) {
 						if err := repo.MarkDuelStarted(ctx, duelID); err != nil {
 							log.Printf("DB MarkDuelStarted error (timeout): %v", err)
 						}
-						rnd, err := repo.CreateRound(ctx, duelID, ev.Round, ev.Prompt, ev.CorrectAnswer, ev.Lang, ev.Topic, int(roundTimeout/time.Millisecond))
+						rnd, err := repo.CreateRound(ctx, duelID, ev.Round, ev.Prompt, ev.CorrectAnswer, ev.Lang, ev.Topic, int(roundTimeout/time.Millisecond), ev.ValidAnswers)
 						if err != nil {
 							log.Printf("DB CreateRound error (timeout): %v", err)
 						} else {

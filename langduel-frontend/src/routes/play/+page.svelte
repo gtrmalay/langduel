@@ -18,7 +18,7 @@
     { value: 'food', label: $_('topics.food') },
     { value: 'movies', label: $_('topics.movies') },
     { value: 'sports', label: $_('topics.sports') },
-    { value: 'custom', label: '🎯 Custom...' }
+    { value: 'custom', label: $_('topics.custom') }
   ];
 
   $: difficulties = [
@@ -144,7 +144,7 @@
       <div class="form-row">
         <div class="form-group">
           <label for="topic">{$_('play.topic')}</label>
-          <select 
+          <select
             id="topic"
             value={$duel.createTopic}
             on:change={(e) => duel.setField('createTopic', e.target.value)}
@@ -153,20 +153,11 @@
               <option value={topic.value}>{topic.label}</option>
             {/each}
           </select>
-          {#if $duel.createTopic === 'custom'}
-            <input 
-              type="text"
-              class="custom-topic-input"
-              placeholder="Enter your topic..."
-              bind:value={customTopic}
-              maxlength="100"
-            />
-          {/if}
         </div>
-        
+
         <div class="form-group">
           <label for="difficulty">{$_('play.difficulty')}</label>
-          <select 
+          <select
             id="difficulty"
             value={$duel.createDifficulty}
             on:change={(e) => duel.setField('createDifficulty', e.target.value)}
@@ -176,6 +167,23 @@
             {/each}
           </select>
         </div>
+
+        {#if $duel.createTopic === 'custom'}
+          <div class="custom-topic-wrap">
+            <input
+              type="text"
+              class="custom-topic-input"
+              class:topic-warn={customTopic.length >= 80}
+              class:topic-error={customTopic.length >= 100}
+              placeholder={$_('play.customTopicPlaceholder')}
+              bind:value={customTopic}
+              maxlength="100"
+            />
+            <span class="topic-counter" class:warn={customTopic.length >= 80} class:full={customTopic.length >= 100}>
+              {customTopic.length}/100
+            </span>
+          </div>
+        {/if}
       </div>
 
       <div class="form-group">
@@ -391,8 +399,42 @@
     gap: 8px;
   }
 
+  .custom-topic-wrap {
+    position: relative;
+    grid-column: 1 / -1;
+  }
+
   .custom-topic-input {
-    margin-top: 8px;
+    width: 100%;
+    padding-right: 52px;
+  }
+
+  .custom-topic-input.topic-warn {
+    border-color: #f59e0b !important;
+  }
+
+  .custom-topic-input.topic-error {
+    border-color: #ef4444 !important;
+  }
+
+  .topic-counter {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 11px;
+    color: var(--muted);
+    pointer-events: none;
+    transition: color 0.2s;
+  }
+
+  .topic-counter.warn {
+    color: #f59e0b;
+  }
+
+  .topic-counter.full {
+    color: #ef4444;
+    font-weight: bold;
   }
 
   label {
