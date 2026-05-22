@@ -601,8 +601,8 @@ function connectAndJoin() {
         }
       }
       
-      if (data.defender_id) hitEffect(data.defender_id);
-      
+      if (data.correct && data.defender_id) hitEffect(data.defender_id);
+
       if (data.self_damage && data.self_damage > 0 && data.attacker_id) {
         hitEffect(data.attacker_id);
       }

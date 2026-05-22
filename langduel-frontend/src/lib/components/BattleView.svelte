@@ -354,7 +354,7 @@
           {charA.emoji}
         </div>
         {#if avatarHitA}
-          <div class="damage-number">-{playerA === lastDamageTo ? lastDamage : 0}</div>
+          <div class="damage-number">{playerA === lastDamageTo && lastDamage > 0 ? `-${lastDamage}` : ''}</div>
         {/if}
         {#if projectileA}
           <div class="projectile projectile-a projectile-{charA.projectile}" style="background: {charA.color}; box-shadow: 0 0 20px {charA.color};"></div>
@@ -387,7 +387,7 @@
           {charB.emoji}
         </div>
         {#if avatarHitB}
-          <div class="damage-number damage-number-b">-{playerB === lastDamageTo ? lastDamage : 0}</div>
+          <div class="damage-number damage-number-b">{playerB === lastDamageTo && lastDamage > 0 ? `-${lastDamage}` : ''}</div>
         {/if}
         {#if projectileB}
           <div class="projectile projectile-b projectile-{charB.projectile}" style="background: {charB.color}; box-shadow: 0 0 20px {charB.color};"></div>
