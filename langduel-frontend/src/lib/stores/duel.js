@@ -144,9 +144,9 @@ async function copyLink(roomId, noteKey) {
   const link = buildRoomLink(roomId);
   try {
     await navigator.clipboard.writeText(link);
-    showNote(noteKey, 'Link copied');
+    showNote(noteKey, t('play.linkCopied'));
   } catch {
-    showNote(noteKey, 'Copy failed');
+    showNote(noteKey, t('play.linkCopied'));
   }
 }
 

@@ -44,7 +44,10 @@
     "phrasesReady": "ФРАЗЫ ГОТОВЫ",
     "generating": "ГЕНЕРАЦИЯ...",
     "phrasesNote": "20 фраз готовы к дуэли!",
-    "customTopicPlaceholder": "Введите тему..."
+    "customTopicPlaceholder": "Введите тему...",
+    "gen": "ГЕН",
+    "copy": "КОП",
+    "linkCopied": "Ссылка скопирована"
   },
   "topics": {
     "default": "Общее",

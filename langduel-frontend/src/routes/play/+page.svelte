@@ -211,7 +211,7 @@
             maxlength="50"
             pattern="[a-zA-Z0-9][a-zA-Z0-9\-]*"
           />
-          <button class="gen-btn" on:click={() => duel.ensureRoomId()}>GEN</button>
+          <button class="gen-btn" on:click={() => duel.ensureRoomId()}>{$_('play.gen')}</button>
         </div>
       </div>
       
@@ -237,7 +237,7 @@
         </span>
         {#if $duel.createRoom}
           <button class="copy-btn" on:click={() => duel.copyLink($duel.createRoom, 'createCopyNote')}>
-            COPY
+            {$_('play.copy')}
           </button>
         {/if}
       </div>

@@ -44,7 +44,10 @@
     "phrasesReady": "PHRASES READY",
     "generating": "GENERATING...",
     "phrasesNote": "20 phrases ready for your duel!",
-    "customTopicPlaceholder": "Enter your topic..."
+    "customTopicPlaceholder": "Enter your topic...",
+    "gen": "GEN",
+    "copy": "COPY",
+    "linkCopied": "Link copied"
   },
   "topics": {
     "default": "General",

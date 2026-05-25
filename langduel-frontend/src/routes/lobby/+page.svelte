@@ -60,7 +60,7 @@
       <span class="code">{$duel.currentRoom || '-'}</span>
       {#if $duel.currentRoom}
         <button class="copy-btn" on:click={() => duel.copyLink($duel.currentRoom, 'lobbyCopyNote')}>
-          COPY
+          {$_('play.copy')}
         </button>
       {/if}
     </div>
