@@ -213,6 +213,7 @@
   },
   "reconnect": {
     "title": "RECONNECT",
+    "disconnected": "Disconnected",
     "reconnecting": "Reconnecting...",
     "backToHome": "BACK TO HOME"
   },

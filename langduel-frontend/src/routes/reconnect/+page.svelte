@@ -20,7 +20,7 @@
       <div class="title">LangDuel</div>
       <div class="title-badge">{$_('reconnect.title')}</div>
     </div>
-    <div class="status">{$duel.status}</div>
+    <div class="status">{$_('reconnect.disconnected')}</div>
   </header>
 
   <ReconnectPanel

@@ -213,6 +213,7 @@
   },
   "reconnect": {
     "title": "ПЕРЕПОДКЛЮЧЕНИЕ",
+    "disconnected": "Отключён",
     "reconnecting": "Переподключение...",
     "backToHome": "НА ГЛАВНУЮ"
   },

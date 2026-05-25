@@ -115,6 +115,9 @@ func readPump(c *Client) {
 			events, rematchWasPending, _ := mgr.Leave(c.roomID, c.displayName)
 			for _, ev := range events {
 				broadcastRoom(c.hub, c.roomID, ev)
+				if ev.Type == "game_over" {
+					processGameOverDB(&ev)
+				}
 			}
 			if rematchWasPending {
 				broadcastRoom(c.hub, c.roomID, duel.Event{
