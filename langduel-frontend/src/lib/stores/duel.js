@@ -941,10 +941,10 @@ function createAndConnect() {
   const s = get(state);
   ensureRoomId();
   const room = get(state).createRoom.trim();
-  const user = s.authMode === 'auth'
+  const user = (s.authMode === 'auth' && s.authedUsername)
     ? s.authedUsername
     : (s.createUser.trim() || 'Guest-' + Math.random().toString(36).slice(2, 6));
-  
+
   if (!user) {
     setState({ startError: 'Username is required' });
     return;
@@ -1004,7 +1004,7 @@ function joinAndConnect() {
     return;
   }
   
-  const user = s.authMode === 'auth'
+  const user = (s.authMode === 'auth' && s.authedUsername)
     ? s.authedUsername
     : (s.joinUser.trim() || 'Guest-' + Math.random().toString(36).slice(2, 6));
   if (!user) {
@@ -1094,6 +1094,7 @@ function logout() {
   localStorage.removeItem(STORAGE_AVATAR_KEY);
   localStorage.removeItem(STORAGE_GUEST_KEY);
   localStorage.removeItem(STORAGE_AUTH_CHOICE_KEY);
+  clearLastSession();
   setState({
     jwtToken: '',
     authedUsername: '',
@@ -1144,7 +1145,6 @@ function init() {
           currentUser: s.user || '',
           isCreator: !!s.creator,
           flowMode: s.flow || 'create',
-          authMode: s.auth || 'guest',
           currentLang: s.lang || 'en-ru',
           createLang: s.lang || 'en-ru',
           createTopic: s.topic || 'default',
@@ -1474,6 +1474,7 @@ export const duel = {
     localStorage.removeItem(STORAGE_USER_KEY);
     localStorage.removeItem(STORAGE_AVATAR_KEY);
     localStorage.removeItem(STORAGE_GUEST_KEY);
+    clearLastSession();
     setState({
       jwtToken: '',
       authedUsername: '',

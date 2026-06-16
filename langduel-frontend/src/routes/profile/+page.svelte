@@ -185,17 +185,18 @@
   }
 
   async function saveUsername() {
-    if (!newUsername.trim()) {
+    const trimmed = newUsername.trim();
+    if (!trimmed) {
       usernameError = $_('profile.usernameEmpty');
       return;
     }
-    if (newUsername.length < 3 || newUsername.length > 30) {
+    if (trimmed.length < 3 || trimmed.length > 30) {
       usernameError = $_('profile.usernameLength');
       return;
     }
     savingUsername = true;
     usernameError = '';
-    const result = await duel.updateUsername(newUsername.trim());
+    const result = await duel.updateUsername(trimmed);
     savingUsername = false;
     if (result.error) {
       usernameError = result.error;
@@ -694,6 +695,7 @@
 
   .username-edit {
     max-width: 300px;
+    margin-bottom: 12px;
   }
 
   .username-input {

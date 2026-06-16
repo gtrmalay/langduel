@@ -7,7 +7,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"langduel/internal/ai"
 	"langduel/internal/duel"
@@ -365,11 +367,12 @@ func (s *Server) handleUpdateUsername(w http.ResponseWriter, r *http.Request, u 
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
+	req.Username = strings.TrimSpace(req.Username)
 	if req.Username == "" {
 		http.Error(w, "username required", http.StatusBadRequest)
 		return
 	}
-	if len(req.Username) < 3 || len(req.Username) > 30 {
+	if n := utf8.RuneCountInString(req.Username); n < 3 || n > 30 {
 		http.Error(w, "username must be 3-30 characters", http.StatusBadRequest)
 		return
 	}
